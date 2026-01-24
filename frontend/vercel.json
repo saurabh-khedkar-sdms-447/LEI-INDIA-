@@ -2,8 +2,12 @@
   "framework": "nextjs",
   "buildCommand": "pnpm build",
   "installCommand": "pnpm install",
-  "outputDirectory": ".next",
   "env": {
     "NODE_ENV": "production"
+  },
+  "functions": {
+    "app/**/*.tsx": {
+      "maxDuration": 10
+    }
   }
 }

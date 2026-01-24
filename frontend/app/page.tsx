@@ -18,19 +18,26 @@ export const metadata: Metadata = {
 }
 
 async function getProducts(): Promise<Product[]> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+  // During build time or when API is not available, return empty array
+  if (!process.env.NEXT_PUBLIC_API_URL) {
+    console.warn('NEXT_PUBLIC_API_URL not set, skipping product fetch during build')
+    return []
+  }
+
   try {
-    const response = await fetch(`${apiUrl}/api/products?limit=6`, {
-      cache: 'no-store', // Always fetch fresh data
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/products?limit=6`, {
+      cache: 'no-store',
+      // Add timeout for Vercel builds
+      signal: AbortSignal.timeout(5000), // 5 second timeout
     })
     if (!response.ok) {
-      throw new Error('Failed to fetch products')
+      throw new Error(`API responded with status: ${response.status}`)
     }
     const data = await response.json()
-    // Handle both old format (array) and new format (object with products array)
     return Array.isArray(data) ? data : (data.products || [])
   } catch (error) {
-    // Silently return empty array for home page - don't break the page
+    console.warn('Failed to fetch products for homepage:', error.message)
+    // Return empty array to prevent build failures
     return []
   }
 }

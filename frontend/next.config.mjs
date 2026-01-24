@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Production optimizations
-  output: 'standalone', // Creates minimal production build for Docker/PM2
+  // Vercel handles output automatically - remove for Vercel deployments
   
   // Compression (handled by Nginx in production, but good fallback)
   compress: true,
