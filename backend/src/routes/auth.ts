@@ -3,7 +3,7 @@ import { validateAdminCredentials, generateToken, verifyToken } from '../utils/a
 import { authLimiter } from '../middleware/rate-limit.js'
 import { sanitizeBody } from '../middleware/sanitize.js'
 
-export const authRouter = Router()
+export const authRouter: Router = Router()
 
 // Apply rate limiting and sanitization
 authRouter.use(authLimiter)

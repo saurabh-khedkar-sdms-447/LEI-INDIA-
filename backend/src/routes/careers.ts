@@ -3,7 +3,7 @@ import { Career } from '../models/Career.js'
 import { requireAuth, AuthRequest } from '../middleware/auth.js'
 import { apiLimiter } from '../middleware/rate-limit.js'
 
-export const careersRouter = Router()
+export const careersRouter: Router = Router()
 
 // Apply rate limiting
 careersRouter.use(apiLimiter)

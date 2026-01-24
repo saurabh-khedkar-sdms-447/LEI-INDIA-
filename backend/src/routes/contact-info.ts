@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { readContactInfo, updateContactInfo } from '../utils/storage.js'
 import { requireAuth, AuthRequest } from '../middleware/auth.js'
 
-export const contactInfoRouter = Router()
+export const contactInfoRouter: Router = Router()
 
 // GET /api/contact-info - Get contact information (public)
 contactInfoRouter.get('/', async (req, res) => {

@@ -6,7 +6,7 @@ import { sanitizeBody } from '../middleware/sanitize.js'
 import { z } from 'zod'
 import crypto from 'crypto'
 
-export const ordersRouter = Router()
+export const ordersRouter: Router = Router()
 
 // Validation schema for RFQ/Order
 const orderSchema = z.object({

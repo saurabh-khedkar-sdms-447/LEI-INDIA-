@@ -82,7 +82,7 @@ const upload = multer({
   },
 })
 
-export const uploadRouter = Router()
+export const uploadRouter: Router = Router()
 
 // POST /api/admin/upload - Upload product image (admin)
 uploadRouter.post('/', requireAuth, upload.single('image'), async (req: AuthRequest, res) => {

@@ -5,7 +5,7 @@ import { apiLimiter, formLimiter } from '../middleware/rate-limit.js'
 import { sanitizeBody } from '../middleware/sanitize.js'
 import { z } from 'zod'
 
-export const inquiriesRouter = Router()
+export const inquiriesRouter: Router = Router()
 
 // Validation schema for inquiries
 const inquirySchema = z.object({

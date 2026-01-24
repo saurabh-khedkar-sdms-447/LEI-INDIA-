@@ -3,7 +3,7 @@ import { Blog } from '../models/Blog.js'
 import { requireAuth, AuthRequest } from '../middleware/auth.js'
 import { apiLimiter } from '../middleware/rate-limit.js'
 
-export const blogsRouter = Router()
+export const blogsRouter: Router = Router()
 
 // Apply rate limiting
 blogsRouter.use(apiLimiter)

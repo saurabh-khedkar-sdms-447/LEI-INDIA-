@@ -8,7 +8,7 @@ import { z } from 'zod'
 import { Product as ProductModel } from '../models/Product.js'
 import { connectDatabase } from '../utils/database.js'
 
-export const productsRouter = Router()
+export const productsRouter: Router = Router()
 
 // Apply sanitization and rate limiting to query params
 productsRouter.use(sanitizeQuery)

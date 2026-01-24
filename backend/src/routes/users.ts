@@ -6,7 +6,7 @@ import { authLimiter } from '../middleware/rate-limit.js'
 import { sanitizeBody } from '../middleware/sanitize.js'
 import { z } from 'zod'
 
-export const usersRouter = Router()
+export const usersRouter: Router = Router()
 
 // Apply rate limiting and sanitization
 usersRouter.use(authLimiter)

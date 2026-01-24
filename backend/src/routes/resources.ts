@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { readResources } from '../utils/storage.js'
 import { apiLimiter } from '../middleware/rate-limit.js'
 
-export const resourcesRouter = Router()
+export const resourcesRouter: Router = Router()
 
 // Apply rate limiting
 resourcesRouter.use(apiLimiter)
