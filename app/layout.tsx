@@ -1,6 +1,8 @@
 import type { Metadata } from "next"
 import "./globals.css"
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary"
+// Validate environment variables at startup
+import '@/lib/env-validation'
 
 // Use system font stack as fallback for Inter
 const fontFamily = 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'

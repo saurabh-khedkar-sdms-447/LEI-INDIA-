@@ -3,6 +3,9 @@ import { pgPool } from '@/lib/pg'
 import { verifyToken } from '@/lib/jwt'
 import { careerSchema } from '@/lib/career-validation'
 import { requireAdmin } from '@/lib/auth-middleware'
+import { sanitizeRichText } from '@/lib/sanitize'
+import { rateLimit } from '@/lib/rate-limit'
+import { csrfProtection } from '@/lib/csrf'
 
 // Helper function to generate slug from title
 function generateSlug(title: string): string {
@@ -16,6 +19,12 @@ function generateSlug(title: string): string {
 
 // GET /api/careers - public active careers or all careers for admin
 export async function GET(req: NextRequest) {
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(req)
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+
   try {
     const authHeader = req.headers.get('authorization')
     let isAdmin = false
@@ -50,9 +59,27 @@ export async function GET(req: NextRequest) {
 
 // POST /api/careers - create career (admin-only)
 export const POST = requireAdmin(async (req: NextRequest) => {
+  // CSRF protection
+  const csrfResponse = csrfProtection(req)
+  if (csrfResponse) {
+    return csrfResponse
+  }
+
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(req, { maxRequests: 20, windowSeconds: 60 })
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+
   try {
     const body = await req.json()
     const parsed = careerSchema.parse(body)
+
+    // Sanitize HTML content fields
+    const sanitizedDescription = sanitizeRichText(parsed.description || '')
+    const sanitizedRequirements = parsed.requirements ? sanitizeRichText(parsed.requirements) : null
+    const sanitizedResponsibilities = parsed.responsibilities ? sanitizeRichText(parsed.responsibilities) : null
+    const sanitizedBenefits = parsed.benefits ? sanitizeRichText(parsed.benefits) : null
 
     // Generate slug from title
     const slug = generateSlug(parsed.title)
@@ -87,10 +114,10 @@ export const POST = requireAdmin(async (req: NextRequest) => {
         parsed.department,
         parsed.location,
         parsed.type,
-        parsed.description,
-        parsed.requirements || null,
-        parsed.responsibilities || null,
-        parsed.benefits || null,
+        sanitizedDescription,
+        sanitizedRequirements,
+        sanitizedResponsibilities,
+        sanitizedBenefits,
         parsed.salary || null,
         parsed.active,
       ],

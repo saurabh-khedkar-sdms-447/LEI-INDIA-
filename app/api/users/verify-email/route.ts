@@ -148,17 +148,20 @@ export async function POST(req: NextRequest) {
       [verificationToken, expiresAt, user.id],
     )
 
-    // TODO: Send email with verification link
-    // In production, use an email service (SendGrid, AWS SES, etc.)
+    // Send email with verification link
     const verificationLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/verify-email?token=${verificationToken}`
-    console.log(`Email verification link for ${user.email}: ${verificationLink}`)
-
-    // In production, send email:
-    // await sendEmail({
-    //   to: user.email,
-    //   subject: 'Verify Your Email Address',
-    //   html: `Click here to verify your email: ${verificationLink}`
-    // })
+    const { sendEmail, generateVerificationEmail } = await import('@/lib/email')
+    const emailContent = generateVerificationEmail(verificationLink, user.name)
+    
+    await sendEmail({
+      to: user.email,
+      subject: emailContent.subject,
+      html: emailContent.html,
+      text: emailContent.text,
+    }).catch((error) => {
+      // Log error but don't fail the request
+      console.error('Failed to send verification email:', error)
+    })
 
     return NextResponse.json({
       message: 'If an account exists with this email, a verification link has been sent.',

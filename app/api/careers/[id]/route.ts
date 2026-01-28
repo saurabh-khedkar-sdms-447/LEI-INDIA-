@@ -3,6 +3,9 @@ import { pgPool } from '@/lib/pg'
 import { verifyToken } from '@/lib/jwt'
 import { careerUpdateSchema } from '@/lib/career-validation'
 import { checkAdmin } from '@/lib/auth-middleware'
+import { sanitizeRichText } from '@/lib/sanitize'
+import { rateLimit } from '@/lib/rate-limit'
+import { csrfProtection } from '@/lib/csrf'
 
 // Helper function to generate slug from title
 function generateSlug(title: string): string {
@@ -19,6 +22,12 @@ export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(req)
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+
   try {
     const result = await pgPool.query(
       `
@@ -63,6 +72,18 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
+  // CSRF protection
+  const csrfResponse = csrfProtection(req)
+  if (csrfResponse) {
+    return csrfResponse
+  }
+
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(req, { maxRequests: 20, windowSeconds: 60 })
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+
   try {
     const auth = checkAdmin(req)
     if (auth instanceof NextResponse) return auth
@@ -113,19 +134,19 @@ export async function PUT(
     }
     if (parsed.description !== undefined) {
       updates.push(`description = $${paramIndex++}`)
-      values.push(parsed.description)
+      values.push(sanitizeRichText(parsed.description))
     }
     if (parsed.requirements !== undefined) {
       updates.push(`requirements = $${paramIndex++}`)
-      values.push(parsed.requirements || null)
+      values.push(parsed.requirements ? sanitizeRichText(parsed.requirements) : null)
     }
     if (parsed.responsibilities !== undefined) {
       updates.push(`responsibilities = $${paramIndex++}`)
-      values.push(parsed.responsibilities || null)
+      values.push(parsed.responsibilities ? sanitizeRichText(parsed.responsibilities) : null)
     }
     if (parsed.benefits !== undefined) {
       updates.push(`benefits = $${paramIndex++}`)
-      values.push(parsed.benefits || null)
+      values.push(parsed.benefits ? sanitizeRichText(parsed.benefits) : null)
     }
     if (parsed.salary !== undefined) {
       updates.push(`salary = $${paramIndex++}`)
@@ -186,6 +207,18 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
+  // CSRF protection
+  const csrfResponse = csrfProtection(req)
+  if (csrfResponse) {
+    return csrfResponse
+  }
+
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(req, { maxRequests: 20, windowSeconds: 60 })
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+
   try {
     const auth = checkAdmin(req)
     if (auth instanceof NextResponse) return auth

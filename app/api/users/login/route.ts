@@ -3,6 +3,7 @@ import { z } from 'zod'
 import bcrypt from 'bcryptjs'
 import { pgPool } from '@/lib/pg'
 import { generateToken } from '@/lib/jwt'
+import { rateLimit } from '@/lib/rate-limit'
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address').toLowerCase().trim(),
@@ -10,6 +11,12 @@ const loginSchema = z.object({
 })
 
 export async function POST(req: NextRequest) {
+  // Rate limiting - stricter for login endpoint to prevent brute force
+  const rateLimitResponse = await rateLimit(req, { maxRequests: 5, windowSeconds: 60 })
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+
   try {
     const json = await req.json()
     const data = loginSchema.parse(json)

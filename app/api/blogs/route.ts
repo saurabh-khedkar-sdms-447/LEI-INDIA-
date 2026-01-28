@@ -3,6 +3,9 @@ import { pgPool } from '@/lib/pg'
 import { verifyToken } from '@/lib/jwt'
 import { blogSchema } from '@/lib/blog-validation'
 import { requireAdmin } from '@/lib/auth-middleware'
+import { sanitizeRichText } from '@/lib/sanitize'
+import { rateLimit } from '@/lib/rate-limit'
+import { csrfProtection } from '@/lib/csrf'
 
 // Helper function to generate slug from title
 function generateSlug(title: string): string {
@@ -16,6 +19,12 @@ function generateSlug(title: string): string {
 
 // GET /api/blogs - public (published only) or all for admin
 export async function GET(req: NextRequest) {
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(req)
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+
   try {
     const authHeader = req.headers.get('authorization')
     let isAdmin = false
@@ -49,9 +58,25 @@ export async function GET(req: NextRequest) {
 
 // POST /api/blogs - create blog (admin-only)
 export const POST = requireAdmin(async (req: NextRequest) => {
+  // CSRF protection
+  const csrfResponse = csrfProtection(req)
+  if (csrfResponse) {
+    return csrfResponse
+  }
+
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(req, { maxRequests: 20, windowSeconds: 60 })
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+
   try {
     const body = await req.json()
     const parsed = blogSchema.parse(body)
+
+    // Sanitize HTML content fields
+    const sanitizedContent = sanitizeRichText(parsed.content || '')
+    const sanitizedExcerpt = sanitizeRichText(parsed.excerpt || '')
 
     // Generate slug from title
     const slug = generateSlug(parsed.title)
@@ -86,8 +111,8 @@ export const POST = requireAdmin(async (req: NextRequest) => {
       [
         parsed.title,
         slug,
-        parsed.excerpt,
-        parsed.content,
+        sanitizedExcerpt,
+        sanitizedContent,
         parsed.author,
         parsed.category,
         parsed.image || null,

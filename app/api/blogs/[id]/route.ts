@@ -3,6 +3,9 @@ import { pgPool } from '@/lib/pg'
 import { verifyToken } from '@/lib/jwt'
 import { blogUpdateSchema } from '@/lib/blog-validation'
 import { checkAdmin } from '@/lib/auth-middleware'
+import { sanitizeRichText } from '@/lib/sanitize'
+import { rateLimit } from '@/lib/rate-limit'
+import { csrfProtection } from '@/lib/csrf'
 
 // Helper function to generate slug from title
 function generateSlug(title: string): string {
@@ -19,6 +22,12 @@ export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(req)
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+
   try {
     const result = await pgPool.query(
       `
@@ -63,6 +72,18 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
+  // CSRF protection
+  const csrfResponse = csrfProtection(req)
+  if (csrfResponse) {
+    return csrfResponse
+  }
+
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(req, { maxRequests: 20, windowSeconds: 60 })
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+
   try {
     const auth = checkAdmin(req)
     if (auth instanceof NextResponse) return auth
@@ -101,11 +122,11 @@ export async function PUT(
     }
     if (parsed.excerpt !== undefined) {
       updates.push(`excerpt = $${paramIndex++}`)
-      values.push(parsed.excerpt)
+      values.push(sanitizeRichText(parsed.excerpt))
     }
     if (parsed.content !== undefined) {
       updates.push(`content = $${paramIndex++}`)
-      values.push(parsed.content)
+      values.push(sanitizeRichText(parsed.content))
     }
     if (parsed.author !== undefined) {
       updates.push(`author = $${paramIndex++}`)
@@ -190,6 +211,18 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
+  // CSRF protection
+  const csrfResponse = csrfProtection(req)
+  if (csrfResponse) {
+    return csrfResponse
+  }
+
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(req, { maxRequests: 20, windowSeconds: 60 })
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+
   try {
     const auth = checkAdmin(req)
     if (auth instanceof NextResponse) return auth

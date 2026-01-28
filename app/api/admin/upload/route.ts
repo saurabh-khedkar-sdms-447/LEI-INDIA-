@@ -3,8 +3,10 @@ import { randomUUID } from 'crypto'
 import { mkdir, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { checkAdmin } from '@/lib/auth-middleware'
+import { log } from '@/lib/logger'
 
 const uploadsDir = join(process.cwd(), 'public', 'uploads')
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB in bytes
 
 // POST /api/admin/upload - upload product image (admin)
 export async function POST(req: NextRequest) {
@@ -23,6 +25,14 @@ export async function POST(req: NextRequest) {
     if (!allowedTypes.includes(file.type)) {
       return NextResponse.json(
         { error: 'Only image files are allowed (jpeg, png, gif, webp)' },
+        { status: 400 },
+      )
+    }
+
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: `File size exceeds maximum allowed size of ${MAX_FILE_SIZE / 1024 / 1024}MB` },
         { status: 400 },
       )
     }
@@ -46,7 +56,7 @@ export async function POST(req: NextRequest) {
       size: buffer.length,
     })
   } catch (error) {
-    console.error('Upload error:', error)
+    log.error('Upload error', error)
     return NextResponse.json(
       { error: 'Failed to upload image' },
       { status: 500 },

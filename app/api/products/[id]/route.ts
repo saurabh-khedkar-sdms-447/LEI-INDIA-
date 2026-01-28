@@ -2,12 +2,21 @@ import { NextRequest, NextResponse } from 'next/server'
 import { pgPool } from '@/lib/pg'
 import { productUpdateSchema } from '@/lib/product-validation'
 import { checkAdmin } from '@/lib/auth-middleware'
+import { sanitizeRichText } from '@/lib/sanitize'
+import { rateLimit } from '@/lib/rate-limit'
+import { csrfProtection } from '@/lib/csrf'
 
 // GET /api/products/:id
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { id: string } },
 ) {
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(req)
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+
   try {
     const result = await pgPool.query(
       `
@@ -41,6 +50,18 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
+  // CSRF protection
+  const csrfResponse = csrfProtection(req)
+  if (csrfResponse) {
+    return csrfResponse
+  }
+
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(req, { maxRequests: 20, windowSeconds: 60 })
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+
   try {
     const auth = checkAdmin(req)
     if (auth instanceof NextResponse) return auth
@@ -65,6 +86,14 @@ export async function PUT(
     if (!existing) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 })
     }
+
+    // Sanitize HTML content fields
+    const sanitizedDescription = parsed.description !== undefined 
+      ? sanitizeRichText(parsed.description) 
+      : existing.description
+    const sanitizedTechnicalDescription = parsed.technicalDescription !== undefined
+      ? (parsed.technicalDescription ? sanitizeRichText(parsed.technicalDescription) : null)
+      : existing.technicalDescription
 
     const updatedResult = await pgPool.query(
       `
@@ -105,8 +134,8 @@ export async function PUT(
         parsed.sku ?? existing.sku,
         parsed.name ?? existing.name,
         parsed.category ?? existing.category,
-        parsed.description ?? existing.description,
-        parsed.technicalDescription ?? existing.technicalDescription,
+        sanitizedDescription,
+        sanitizedTechnicalDescription,
         parsed.coding ?? existing.coding,
         parsed.pins ?? existing.pins,
         parsed.ipRating ?? existing.ipRating,
@@ -157,6 +186,18 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
+  // CSRF protection
+  const csrfResponse = csrfProtection(req)
+  if (csrfResponse) {
+    return csrfResponse
+  }
+
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(req, { maxRequests: 20, windowSeconds: 60 })
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+
   try {
     const auth = checkAdmin(req)
     if (auth instanceof NextResponse) return auth

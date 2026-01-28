@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { pgPool } from '@/lib/pg'
 import { generateToken } from '@/lib/jwt'
+import { log } from '@/lib/logger'
 
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').trim(),
@@ -62,17 +63,20 @@ export async function POST(req: NextRequest) {
 
     const user = inserted.rows[0]
 
-    // TODO: Send verification email
-    // In production, use an email service (SendGrid, AWS SES, etc.)
+    // Send verification email
     const verificationLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/verify-email?token=${verificationToken}`
-    console.log(`Email verification link for ${user.email}: ${verificationLink}`)
-
-    // In production, send email:
-    // await sendEmail({
-    //   to: user.email,
-    //   subject: 'Verify Your Email Address',
-    //   html: `Welcome! Please verify your email by clicking here: ${verificationLink}`
-    // })
+    const { sendEmail, generateVerificationEmail } = await import('@/lib/email')
+    const emailContent = generateVerificationEmail(verificationLink, user.name)
+    
+    await sendEmail({
+      to: user.email,
+      subject: emailContent.subject,
+      html: emailContent.html,
+      text: emailContent.text,
+    }).catch((error) => {
+      // Log error but don't fail registration
+      log.error('Failed to send verification email', error, { userId: user.id, email: user.email })
+    })
 
     const token = generateToken(user.email, 'customer')
 
@@ -115,7 +119,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    console.error('Registration error:', error)
+    log.error('Registration error', error)
     return NextResponse.json(
       { error: 'Failed to register user' },
       { status: 500 },

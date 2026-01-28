@@ -2,9 +2,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import { pgPool } from '@/lib/pg'
 import { productSchema } from '@/lib/product-validation'
 import { requireAdmin } from '@/lib/auth-middleware'
+import { sanitizeRichText } from '@/lib/sanitize'
+import { rateLimit } from '@/lib/rate-limit'
+import { csrfProtection } from '@/lib/csrf'
 
 // GET /api/products - list products with pagination and filters
 export async function GET(req: NextRequest) {
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(req)
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+
   try {
     const { searchParams } = new URL(req.url)
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
@@ -150,9 +159,25 @@ export async function GET(req: NextRequest) {
 
 // POST /api/products - create product (admin-only)
 export const POST = requireAdmin(async (req: NextRequest) => {
+  // CSRF protection
+  const csrfResponse = csrfProtection(req)
+  if (csrfResponse) {
+    return csrfResponse
+  }
+
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(req, { maxRequests: 20, windowSeconds: 60 })
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+
   try {
     const body = await req.json()
     const parsed = productSchema.parse(body)
+
+    // Sanitize HTML content fields
+    const sanitizedDescription = sanitizeRichText(parsed.description || '')
+    const sanitizedTechnicalDescription = parsed.technicalDescription ? sanitizeRichText(parsed.technicalDescription) : null
 
     const result = await pgPool.query(
       `
@@ -184,8 +209,8 @@ export const POST = requireAdmin(async (req: NextRequest) => {
         parsed.sku,
         parsed.name,
         parsed.category,
-        parsed.description,
-        parsed.technicalDescription,
+        sanitizedDescription,
+        sanitizedTechnicalDescription,
         parsed.coding,
         parsed.pins,
         parsed.ipRating,

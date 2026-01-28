@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { pgPool } from '@/lib/pg'
 import crypto from 'crypto'
+import { log } from '@/lib/logger'
 
 const resetRequestSchema = z.object({
   email: z.string().email('Invalid email address').toLowerCase().trim(),
@@ -60,18 +61,20 @@ export async function POST(req: NextRequest) {
       [user.id, resetToken, expiresAt],
     )
 
-    // TODO: Send email with reset link
-    // In production, use an email service (SendGrid, AWS SES, etc.)
-    // For now, log the token (remove in production!)
+    // Send email with reset link
     const resetLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`
-    console.log(`Password reset link for ${user.email}: ${resetLink}`)
-
-    // In production, send email:
-    // await sendEmail({
-    //   to: user.email,
-    //   subject: 'Password Reset Request',
-    //   html: `Click here to reset your password: ${resetLink}`
-    // })
+    const { sendEmail, generatePasswordResetEmail } = await import('@/lib/email')
+    const emailContent = generatePasswordResetEmail(resetLink, user.name)
+    
+    await sendEmail({
+      to: user.email,
+      subject: emailContent.subject,
+      html: emailContent.html,
+      text: emailContent.text,
+    }).catch((error) => {
+      // Log error but don't fail the request (security: don't reveal if email exists)
+      log.error('Failed to send password reset email', error, { email: data.email })
+    })
 
     return NextResponse.json({
       message: 'If an account exists with this email, a password reset link has been sent.',
@@ -90,7 +93,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    console.error('Password reset request error:', error)
+    log.error('Password reset request error', error)
     return NextResponse.json(
       { error: 'Failed to process password reset request' },
       { status: 500 },

@@ -138,7 +138,7 @@ function LoginForm() {
                       Remember me
                     </Label>
                   </div>
-                  <Link href="#" className="text-sm text-primary hover:underline">
+                  <Link href="/reset-password" className="text-sm text-primary hover:underline">
                     Forgot password?
                   </Link>
                 </div>
