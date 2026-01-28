@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { prisma } from '@/lib/db'
+import { pgPool } from '@/lib/pg'
 import { verifyToken } from '@/lib/jwt'
+import { requireAdmin, requireCustomer } from '@/lib/auth-middleware'
 
 const orderItemSchema = z.object({
   productId: z.string().min(1, 'Product ID is required'),
@@ -30,41 +31,86 @@ const orderUpdateSchema = z.object({
 })
 
 // POST /api/orders - create order (RFQ, authenticated customer)
-export async function POST(req: NextRequest) {
+export const POST = requireCustomer(async (req: NextRequest) => {
   try {
-    const token = req.cookies.get('user_token')?.value
-    const decoded = token ? verifyToken(token) : null
-
-    if (!decoded || decoded.role !== 'customer') {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
 
     const json = await req.json()
     const data = orderSchema.parse(json)
 
-    const order = await prisma.order.create({
-      data: {
-        companyName: data.companyName,
-        contactName: data.contactName,
-        email: data.email,
-        phone: data.phone,
-        companyAddress: data.companyAddress,
-        notes: data.notes,
-        status: (data.status as any) || 'pending',
-        items: {
-          create: data.items.map((item) => ({
-            productId: item.productId,
-            sku: item.sku,
-            name: item.name,
-            quantity: item.quantity,
-            notes: item.notes,
-          })),
-        },
-      },
-      include: { items: true },
-    })
+    // Start a transaction
+    const client = await pgPool.connect()
+    try {
+      await client.query('BEGIN')
 
-    return NextResponse.json(order, { status: 201 })
+      const orderResult = await client.query(
+        `
+        INSERT INTO "Order" (
+          "companyName", "contactName", email, phone,
+          "companyAddress", notes, status,
+          "createdAt", "updatedAt"
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+        RETURNING id, "companyName", "contactName", email, phone,
+                  "companyAddress", notes, status, "createdAt", "updatedAt"
+        `,
+        [
+          data.companyName,
+          data.contactName,
+          data.email,
+          data.phone,
+          data.companyAddress ?? null,
+          data.notes ?? null,
+          data.status ?? 'pending',
+        ],
+      )
+
+      const order = orderResult.rows[0]
+
+      const itemsValues: any[] = []
+      const valuesChunks: string[] = []
+      data.items.forEach((item, index) => {
+        const base = index * 7
+        valuesChunks.push(
+          `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7})`,
+        )
+        itemsValues.push(
+          order.id,
+          item.productId,
+          item.sku,
+          item.name,
+          item.quantity,
+          item.notes ?? null,
+          // id is defaulted in the DB
+          null,
+        )
+      })
+
+      const itemsResult = await client.query(
+        `
+        INSERT INTO "OrderItem" (
+          "orderId", "productId", sku, name, quantity, notes, id
+        )
+        VALUES ${valuesChunks.join(', ')}
+        RETURNING id, "orderId", "productId", sku, name, quantity, notes
+        `,
+        itemsValues,
+      )
+
+      await client.query('COMMIT')
+
+      return NextResponse.json(
+        {
+          ...order,
+          items: itemsResult.rows,
+        },
+        { status: 201 },
+      )
+    } catch (e) {
+      await client.query('ROLLBACK')
+      throw e
+    } finally {
+      client.release()
+    }
   } catch (error: any) {
     if (error?.name === 'ZodError') {
       return NextResponse.json(
@@ -85,23 +131,44 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     )
   }
-}
+})
 
 // GET /api/orders - list orders (admin)
-export async function GET(req: NextRequest) {
+export const GET = requireAdmin(async (req: NextRequest) => {
   try {
-    const token = req.cookies.get('admin_token')?.value
-    const decoded = token ? verifyToken(token) : null
-    if (!decoded || (decoded.role !== 'admin' && decoded.role !== 'superadmin')) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
 
-    const orders = await prisma.order.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: { items: true },
-    })
+    const result = await pgPool.query(
+      `
+      SELECT
+        o.id,
+        o."companyName",
+        o."contactName",
+        o.email,
+        o.phone,
+        o."companyAddress",
+        o.notes,
+        o.status,
+        o."createdAt",
+        o."updatedAt",
+        json_agg(
+          json_build_object(
+            'id', oi.id,
+            'orderId', oi."orderId",
+            'productId', oi."productId",
+            'sku', oi.sku,
+            'name', oi.name,
+            'quantity', oi.quantity,
+            'notes', oi.notes
+          )
+        ) AS items
+      FROM "Order" o
+      LEFT JOIN "OrderItem" oi ON oi."orderId" = o.id
+      GROUP BY o.id
+      ORDER BY o."createdAt" DESC
+      `,
+    )
 
-    return NextResponse.json(orders)
+    return NextResponse.json(result.rows)
   } catch (error) {
     console.error('Error fetching orders:', error)
     return NextResponse.json(
@@ -109,5 +176,5 @@ export async function GET(req: NextRequest) {
       { status: 500 },
     )
   }
-}
+})
 

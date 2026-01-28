@@ -1,22 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { pgPool } from '@/lib/pg'
 import { categoryUpdateSchema } from '@/lib/category-validation'
-import { verifyToken } from '@/lib/jwt'
-
-function requireAdmin(req: NextRequest) {
-  const token = req.cookies.get('admin_token')?.value
-  const decoded = token ? verifyToken(token) : null
-
-  if (!decoded) {
-    return { error: 'Authentication required', status: 401 }
-  }
-
-  if (decoded.role !== 'admin' && decoded.role !== 'superadmin') {
-    return { error: 'Forbidden', status: 403 }
-  }
-
-  return null
-}
+import { checkAdmin } from '@/lib/auth-middleware'
 
 // GET /api/categories/:id
 export async function GET(
@@ -24,9 +9,16 @@ export async function GET(
   { params }: { params: { id: string } },
 ) {
   try {
-    const category = await prisma.category.findUnique({
-      where: { id: params.id },
-    })
+    const result = await pgPool.query(
+      `
+      SELECT id, name, slug, description, image, "parentId", "createdAt", "updatedAt"
+      FROM "Category"
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [params.id],
+    )
+    const category = result.rows[0]
 
     if (!category) {
       return NextResponse.json({ error: 'Category not found' }, { status: 404 })
@@ -44,33 +36,50 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
-  const authError = requireAdmin(req)
-  if (authError) {
-    return NextResponse.json({ error: authError.error }, { status: authError.status })
-  }
-
   try {
+    const auth = checkAdmin(req)
+    if (auth instanceof NextResponse) return auth
     const body = await req.json()
     const parsed = categoryUpdateSchema.parse(body)
 
-    const existing = await prisma.category.findUnique({ where: { id: params.id } })
+    const existingResult = await pgPool.query(
+      `
+      SELECT id, name, slug, description, image, "parentId"
+      FROM "Category"
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [params.id],
+    )
+    const existing = existingResult.rows[0]
     if (!existing) {
       return NextResponse.json({ error: 'Category not found' }, { status: 404 })
     }
 
-    const updated = await prisma.category.update({
-      where: { id: params.id },
-      data: {
-        name: parsed.name ?? existing.name,
-        slug: parsed.slug ?? existing.slug,
-        description:
-          parsed.description !== undefined ? parsed.description || null : existing.description,
-        image: parsed.image !== undefined ? parsed.image || null : existing.image,
-        parentId: parsed.parentId !== undefined ? parsed.parentId || null : existing.parentId,
-      },
-    })
+    const updatedResult = await pgPool.query(
+      `
+      UPDATE "Category"
+      SET
+        name = $1,
+        slug = $2,
+        description = $3,
+        image = $4,
+        "parentId" = $5,
+        "updatedAt" = NOW()
+      WHERE id = $6
+      RETURNING id, name, slug, description, image, "parentId", "createdAt", "updatedAt"
+      `,
+      [
+        parsed.name ?? existing.name,
+        parsed.slug ?? existing.slug,
+        parsed.description !== undefined ? parsed.description || null : existing.description,
+        parsed.image !== undefined ? parsed.image || null : existing.image,
+        parsed.parentId !== undefined ? parsed.parentId || null : existing.parentId,
+        params.id,
+      ],
+    )
 
-    return NextResponse.json(updated)
+    return NextResponse.json(updatedResult.rows[0])
   } catch (error: any) {
     if (error?.name === 'ZodError') {
       return NextResponse.json(
@@ -95,18 +104,30 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
-  const authError = requireAdmin(req)
-  if (authError) {
-    return NextResponse.json({ error: authError.error }, { status: authError.status })
-  }
-
   try {
-    const existing = await prisma.category.findUnique({ where: { id: params.id } })
+    const auth = checkAdmin(req)
+    if (auth instanceof NextResponse) return auth
+    const existingResult = await pgPool.query(
+      `
+      SELECT id
+      FROM "Category"
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [params.id],
+    )
+    const existing = existingResult.rows[0]
     if (!existing) {
       return NextResponse.json({ error: 'Category not found' }, { status: 404 })
     }
 
-    await prisma.category.delete({ where: { id: params.id } })
+    await pgPool.query(
+      `
+      DELETE FROM "Category"
+      WHERE id = $1
+      `,
+      [params.id],
+    )
     return NextResponse.json({ message: 'Category deleted successfully' })
   } catch (error) {
     console.error('Error deleting category:', error)

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { prisma } from '@/lib/db'
-import { verifyToken } from '@/lib/jwt'
+import { pgPool } from '@/lib/pg'
+import { checkAdmin } from '@/lib/auth-middleware'
 
 const inquiryUpdateSchema = z.object({
   read: z.boolean().optional(),
@@ -11,27 +11,25 @@ const inquiryUpdateSchema = z.object({
   message: 'At least one field must be provided for update',
 })
 
-async function requireAdmin(req: NextRequest) {
-  const token = req.cookies.get('admin_token')?.value
-  const decoded = token ? verifyToken(token) : null
-  if (!decoded || (decoded.role !== 'admin' && decoded.role !== 'superadmin')) {
-    return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
-  }
-  return { decoded }
-}
-
 // GET /api/inquiries/:id - admin
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
-  const auth = await requireAdmin(req)
-  if ('error' in auth) return auth.error
-
   try {
-    const inquiry = await prisma.inquiry.findUnique({
-      where: { id: params.id },
-    })
+    const auth = checkAdmin(req)
+    if (auth instanceof NextResponse) return auth
+    const result = await pgPool.query(
+      `
+      SELECT id, name, email, phone, company, subject, message, read, responded,
+             "createdAt", "updatedAt"
+      FROM "Inquiry"
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [params.id],
+    )
+    const inquiry = result.rows[0]
     if (!inquiry) {
       return NextResponse.json({ error: 'Inquiry not found' }, { status: 404 })
     }
@@ -50,21 +48,30 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
-  const auth = await requireAdmin(req)
-  if ('error' in auth) return auth.error
-
   try {
+    const auth = checkAdmin(req)
+    if (auth instanceof NextResponse) return auth
     const json = await req.json()
     const data = inquiryUpdateSchema.parse(json)
 
-    const inquiry = await prisma.inquiry.update({
-      where: { id: params.id },
-      data: {
-        read: data.read,
-        responded: data.responded,
-        // notes: if you add a notes column later
-      },
-    })
+    const result = await pgPool.query(
+      `
+      UPDATE "Inquiry"
+      SET
+        read = COALESCE($1, read),
+        responded = COALESCE($2, responded),
+        "updatedAt" = NOW()
+      WHERE id = $3
+      RETURNING id, name, email, phone, company, subject, message, read, responded,
+                "createdAt", "updatedAt"
+      `,
+      [data.read ?? null, data.responded ?? null, params.id],
+    )
+
+    const inquiry = result.rows[0]
+    if (!inquiry) {
+      return NextResponse.json({ error: 'Inquiry not found' }, { status: 404 })
+    }
 
     return NextResponse.json(inquiry)
   } catch (error: any) {
@@ -94,13 +101,16 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
-  const auth = await requireAdmin(req)
-  if ('error' in auth) return auth.error
-
   try {
-    await prisma.inquiry.delete({
-      where: { id: params.id },
-    })
+    const auth = checkAdmin(req)
+    if (auth instanceof NextResponse) return auth
+    await pgPool.query(
+      `
+      DELETE FROM "Inquiry"
+      WHERE id = $1
+      `,
+      [params.id],
+    )
     return NextResponse.json({ message: 'Inquiry deleted successfully' })
   } catch (error) {
     console.error('Error deleting inquiry:', error)

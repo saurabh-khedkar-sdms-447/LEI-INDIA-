@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import bcrypt from 'bcryptjs'
+import crypto from 'crypto'
 import { pgPool } from '@/lib/pg'
 import { generateToken } from '@/lib/jwt'
 
@@ -27,6 +28,11 @@ export async function POST(req: NextRequest) {
 
     const passwordHash = await bcrypt.hash(data.password, 10)
 
+    // Generate email verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex')
+    const expiresAt = new Date()
+    expiresAt.setDate(expiresAt.getDate() + 7) // Token expires in 7 days
+
     const inserted = await pgPool.query<{
       id: string
       name: string
@@ -36,14 +42,37 @@ export async function POST(req: NextRequest) {
       role: string
     }>(
       `
-      INSERT INTO "User" (name, email, password, company, phone, role, "isActive")
-      VALUES ($1, $2, $3, $4, $5, 'customer', true)
+      INSERT INTO "User" (
+        name, email, password, company, phone, role, "isActive",
+        "emailVerified", "emailVerificationToken", "emailVerificationTokenExpires"
+      )
+      VALUES ($1, $2, $3, $4, $5, 'customer', true, false, $6, $7)
       RETURNING id, name, email, company, phone, role
       `,
-      [data.name, data.email, passwordHash, data.company ?? null, data.phone ?? null],
+      [
+        data.name,
+        data.email,
+        passwordHash,
+        data.company ?? null,
+        data.phone ?? null,
+        verificationToken,
+        expiresAt,
+      ],
     )
 
     const user = inserted.rows[0]
+
+    // TODO: Send verification email
+    // In production, use an email service (SendGrid, AWS SES, etc.)
+    const verificationLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/verify-email?token=${verificationToken}`
+    console.log(`Email verification link for ${user.email}: ${verificationLink}`)
+
+    // In production, send email:
+    // await sendEmail({
+    //   to: user.email,
+    //   subject: 'Verify Your Email Address',
+    //   html: `Welcome! Please verify your email by clicking here: ${verificationLink}`
+    // })
 
     const token = generateToken(user.email, 'customer')
 
@@ -57,6 +86,8 @@ export async function POST(req: NextRequest) {
           phone: user.phone || undefined,
           role: user.role,
         },
+        message: 'Registration successful. Please check your email to verify your account.',
+        requiresVerification: true,
       },
       { status: 201 },
     )

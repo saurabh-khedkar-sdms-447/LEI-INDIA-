@@ -1,19 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
-import { verifyToken } from '@/lib/jwt'
+import { pgPool } from '@/lib/pg'
+import { requireAdmin } from '@/lib/auth-middleware'
+import { contactInfoSchema } from '@/lib/contact-info-validation'
 
 async function getOrCreateContactInfo() {
-  let contact = await prisma.contactInfo.findFirst()
-  if (!contact) {
-    contact = await prisma.contactInfo.create({
-      data: {
-        phone: '+91-XXX-XXXX-XXXX',
-        email: 'info@leiindias.com',
-        address: 'Industrial Area, India',
-      },
-    })
+  const existing = await pgPool.query(
+    `
+    SELECT id, phone, email, address, "registeredAddress", "factoryLocation2",
+           "regionalBangalore", "regionalKolkata", "regionalGurgaon",
+           "createdAt", "updatedAt"
+    FROM "ContactInfo"
+    ORDER BY "createdAt" ASC
+    LIMIT 1
+    `,
+  )
+
+  if (existing.rows[0]) {
+    return existing.rows[0]
   }
-  return contact
+
+  const inserted = await pgPool.query(
+    `
+    INSERT INTO "ContactInfo" (
+      phone, email, address, "registeredAddress", "factoryLocation2",
+      "regionalBangalore", "regionalKolkata", "regionalGurgaon",
+      "createdAt", "updatedAt"
+    )
+    VALUES ($1, $2, $3, NULL, NULL, NULL, NULL, NULL, NOW(), NOW())
+    RETURNING id, phone, email, address, "registeredAddress", "factoryLocation2",
+              "regionalBangalore", "regionalKolkata", "regionalGurgaon",
+              "createdAt", "updatedAt"
+    `,
+    ['+91-XXX-XXXX-XXXX', 'info@leiindias.com', 'Industrial Area, India'],
+  )
+
+  return inserted.rows[0]
 }
 
 // GET /api/contact-info - public
@@ -31,47 +52,64 @@ export async function GET(_req: NextRequest) {
 }
 
 // PUT /api/contact-info - admin
-export async function PUT(req: NextRequest) {
+export const PUT = requireAdmin(async (req: NextRequest) => {
   try {
-    const token = req.cookies.get('admin_token')?.value
-    const decoded = token ? verifyToken(token) : null
-    if (!decoded || (decoded.role !== 'admin' && decoded.role !== 'superadmin')) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
     const body = await req.json()
-    const { phone, email, address, registeredAddress, factoryLocation2, regionalContacts } = body
+    const parsed = contactInfoSchema.parse(body)
 
-    if (!phone || !email || !address) {
+    const existing = await getOrCreateContactInfo()
+
+    const updated = await pgPool.query(
+      `
+      UPDATE "ContactInfo"
+      SET
+        phone = $1,
+        email = $2,
+        address = $3,
+        "registeredAddress" = $4,
+        "factoryLocation2" = $5,
+        "regionalBangalore" = $6,
+        "regionalKolkata" = $7,
+        "regionalGurgaon" = $8,
+        "updatedAt" = NOW()
+      WHERE id = $9
+      RETURNING id, phone, email, address, "registeredAddress", "factoryLocation2",
+                "regionalBangalore", "regionalKolkata", "regionalGurgaon",
+                "createdAt", "updatedAt"
+      `,
+      [
+        parsed.phone,
+        parsed.email,
+        parsed.address,
+        parsed.registeredAddress ?? null,
+        parsed.factoryLocation2 ?? null,
+        parsed.regionalContacts?.bangalore ?? null,
+        parsed.regionalContacts?.kolkata ?? null,
+        parsed.regionalContacts?.gurgaon ?? null,
+        existing.id,
+      ],
+    )
+
+    return NextResponse.json(updated.rows[0])
+  } catch (error: any) {
+    if (error?.name === 'ZodError') {
       return NextResponse.json(
-        { error: 'Phone, email, and address are required' },
+        {
+          error: 'Validation failed',
+          details: error.errors?.map((e: any) => ({
+            field: e.path.join('.'),
+            message: e.message,
+          })),
+        },
         { status: 400 },
       )
     }
 
-    const existing = await getOrCreateContactInfo()
-
-    const updated = await prisma.contactInfo.update({
-      where: { id: existing.id },
-      data: {
-        phone,
-        email,
-        address,
-        registeredAddress,
-        factoryLocation2,
-        regionalBangalore: regionalContacts?.bangalore,
-        regionalKolkata: regionalContacts?.kolkata,
-        regionalGurgaon: regionalContacts?.gurgaon,
-      },
-    })
-
-    return NextResponse.json(updated)
-  } catch (error) {
     console.error('Failed to update contact information:', error)
     return NextResponse.json(
       { error: 'Failed to update contact information' },
-      { status: 500 },
+      { status: 400 },
     )
   }
-}
+})
 

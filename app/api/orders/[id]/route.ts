@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { prisma } from '@/lib/db'
-import { verifyToken } from '@/lib/jwt'
+import { pgPool } from '@/lib/pg'
+import { checkAdmin } from '@/lib/auth-middleware'
 
 const orderUpdateSchema = z.object({
   status: z.enum(['pending', 'quoted', 'approved', 'rejected']).optional(),
@@ -16,16 +16,42 @@ export async function GET(
   { params }: { params: { id: string } },
 ) {
   try {
-    const token = req.cookies.get('admin_token')?.value
-    const decoded = token ? verifyToken(token) : null
-    if (!decoded || (decoded.role !== 'admin' && decoded.role !== 'superadmin')) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    const auth = checkAdmin(req)
+    if (auth instanceof NextResponse) return auth
 
-    const order = await prisma.order.findUnique({
-      where: { id: params.id },
-      include: { items: true },
-    })
+    const result = await pgPool.query(
+      `
+      SELECT
+        o.id,
+        o."companyName",
+        o."contactName",
+        o.email,
+        o.phone,
+        o."companyAddress",
+        o.notes,
+        o.status,
+        o."createdAt",
+        o."updatedAt",
+        json_agg(
+          json_build_object(
+            'id', oi.id,
+            'orderId', oi."orderId",
+            'productId', oi."productId",
+            'sku', oi.sku,
+            'name', oi.name,
+            'quantity', oi.quantity,
+            'notes', oi.notes
+          )
+        ) AS items
+      FROM "Order" o
+      LEFT JOIN "OrderItem" oi ON oi."orderId" = o.id
+      WHERE o.id = $1
+      GROUP BY o.id
+      LIMIT 1
+      `,
+      [params.id],
+    )
+    const order = result.rows[0]
     if (!order) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 })
     }
@@ -45,25 +71,53 @@ export async function PUT(
   { params }: { params: { id: string } },
 ) {
   try {
-    const token = req.cookies.get('admin_token')?.value
-    const decoded = token ? verifyToken(token) : null
-    if (!decoded || (decoded.role !== 'admin' && decoded.role !== 'superadmin')) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    const auth = checkAdmin(req)
+    if (auth instanceof NextResponse) return auth
 
     const json = await req.json()
     const data = orderUpdateSchema.parse(json)
 
-    const updated = await prisma.order.update({
-      where: { id: params.id },
-      data: {
-        status: data.status as any,
-        notes: data.notes,
-      },
-      include: { items: true },
-    })
+    const result = await pgPool.query(
+      `
+      UPDATE "Order"
+      SET
+        status = COALESCE($1, status),
+        notes = COALESCE($2, notes),
+        "updatedAt" = NOW()
+      WHERE id = $3
+      RETURNING
+        id,
+        "companyName",
+        "contactName",
+        email,
+        phone,
+        "companyAddress",
+        notes,
+        status,
+        "createdAt",
+        "updatedAt"
+      `,
+      [data.status ?? null, data.notes ?? null, params.id],
+    )
 
-    return NextResponse.json(updated)
+    const order = result.rows[0]
+    if (!order) {
+      return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+    }
+
+    const itemsResult = await pgPool.query(
+      `
+      SELECT id, "orderId", "productId", sku, name, quantity, notes
+      FROM "OrderItem"
+      WHERE "orderId" = $1
+      `,
+      [params.id],
+    )
+
+    return NextResponse.json({
+      ...order,
+      items: itemsResult.rows,
+    })
   } catch (error: any) {
     if (error?.name === 'ZodError') {
       return NextResponse.json(

@@ -23,9 +23,10 @@ export async function POST(req: NextRequest) {
       phone: string | null
       role: string
       isActive: boolean
+      emailVerified: boolean
     }>(
       `
-      SELECT id, name, email, password, company, phone, role, "isActive"
+      SELECT id, name, email, password, company, phone, role, "isActive", "emailVerified"
       FROM "User"
       WHERE email = $1
       LIMIT 1
@@ -41,6 +42,17 @@ export async function POST(req: NextRequest) {
     if (!user.isActive) {
       return NextResponse.json({ error: 'Account is deactivated' }, { status: 403 })
     }
+
+    // Check if email is verified (optional - uncomment if email verification is required)
+    // if (!user.emailVerified) {
+    //   return NextResponse.json(
+    //     {
+    //       error: 'Please verify your email before logging in',
+    //       requiresVerification: true,
+    //     },
+    //     { status: 403 },
+    //   )
+    // }
 
     const valid = await bcrypt.compare(data.password, user.password)
     if (!valid) {

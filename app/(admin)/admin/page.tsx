@@ -37,11 +37,15 @@ export default function AdminDashboard() {
       try {
         setIsLoading(true)
         setError(null)
+        // For client-side, relative URLs work fine
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || ''
+        const productsUrl = baseUrl ? `${baseUrl}/api/products?limit=10000` : '/api/products?limit=10000'
+        const ordersUrl = baseUrl ? `${baseUrl}/api/orders` : '/api/orders'
+        const inquiriesUrl = baseUrl ? `${baseUrl}/api/inquiries` : '/api/inquiries'
         const [productsRes, ordersRes, inquiriesRes] = await Promise.all([
-          fetch(`${baseUrl}/api/products?limit=10000`),
-          fetch(`${baseUrl}/api/orders`),
-          fetch(`${baseUrl}/api/inquiries`),
+          fetch(productsUrl),
+          fetch(ordersUrl),
+          fetch(inquiriesUrl),
         ])
 
         if (!productsRes.ok) {

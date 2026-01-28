@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { pgPool } from '@/lib/pg'
 import { productSchema } from '@/lib/product-validation'
-import { verifyToken } from '@/lib/jwt'
+import { requireAdmin } from '@/lib/auth-middleware'
 
 // GET /api/products - list products with pagination and filters
 export async function GET(req: NextRequest) {
@@ -9,73 +9,127 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10) || 20))
-    const skip = (page - 1) * limit
-
-    const where: any = {}
+    const offset = (page - 1) * limit
 
     const idsParam = searchParams.get('ids')
+    const connectorType = searchParams.get('connectorType')
+    const coding = searchParams.get('coding')
+    const pins = searchParams.get('pins')
+    const ipRating = searchParams.get('ipRating')
+    const gender = searchParams.get('gender')
+    const inStock = searchParams.get('inStock')
+    const search = searchParams.get('search')
+    const category = searchParams.get('category')
+
+    const filters: string[] = []
+    const values: any[] = []
+
     if (idsParam) {
       const ids = idsParam.split(',').map((id) => id.trim()).filter(Boolean)
       if (ids.length > 0) {
-        where.id = { in: ids }
+        const placeholders = ids.map((_, idx) => `$${values.length + idx + 1}`)
+        filters.push(`id IN (${placeholders.join(',')})`)
+        values.push(...ids)
       }
     }
 
-    const connectorType = searchParams.get('connectorType')
     if (connectorType) {
-      where.connectorType = { in: connectorType.split(',') }
-    }
-
-    const coding = searchParams.get('coding')
-    if (coding) {
-      where.coding = { in: coding.split(',') }
-    }
-
-    const pins = searchParams.get('pins')
-    if (pins) {
-      const pinValues = pins.split(',').map((p) => Number(p)).filter((p) => !Number.isNaN(p))
-      if (pinValues.length > 0) {
-        where.pins = { in: pinValues }
+      const list = connectorType.split(',').map((v) => v.trim()).filter(Boolean)
+      if (list.length > 0) {
+        const placeholders = list.map((_, idx) => `$${values.length + idx + 1}`)
+        filters.push(`"connectorType" IN (${placeholders.join(',')})`)
+        values.push(...list)
       }
     }
 
-    const ipRating = searchParams.get('ipRating')
+    if (coding) {
+      const list = coding.split(',').map((v) => v.trim()).filter(Boolean)
+      if (list.length > 0) {
+        const placeholders = list.map((_, idx) => `$${values.length + idx + 1}`)
+        filters.push(`coding IN (${placeholders.join(',')})`)
+        values.push(...list)
+      }
+    }
+
+    if (pins) {
+      const pinValues = pins
+        .split(',')
+        .map((p) => Number(p))
+        .filter((p) => !Number.isNaN(p))
+      if (pinValues.length > 0) {
+        const placeholders = pinValues.map((_, idx) => `$${values.length + idx + 1}`)
+        filters.push(`pins IN (${placeholders.join(',')})`)
+        values.push(...pinValues)
+      }
+    }
+
     if (ipRating) {
-      where.ipRating = { in: ipRating.split(',') }
+      const list = ipRating.split(',').map((v) => v.trim()).filter(Boolean)
+      if (list.length > 0) {
+        const placeholders = list.map((_, idx) => `$${values.length + idx + 1}`)
+        filters.push(`"ipRating" IN (${placeholders.join(',')})`)
+        values.push(...list)
+      }
     }
 
-    const gender = searchParams.get('gender')
     if (gender) {
-      where.gender = { in: gender.split(',') }
+      const list = gender.split(',').map((v) => v.trim()).filter(Boolean)
+      if (list.length > 0) {
+        const placeholders = list.map((_, idx) => `$${values.length + idx + 1}`)
+        filters.push(`gender IN (${placeholders.join(',')})`)
+        values.push(...list)
+      }
     }
 
-    const inStock = searchParams.get('inStock')
     if (inStock === 'true') {
-      where.inStock = true
+      filters.push(`"inStock" = true`)
     }
 
-    const search = searchParams.get('search')
     if (search) {
-      const value = search.toLowerCase()
-      where.OR = [
-        { name: { contains: value, mode: 'insensitive' } },
-        { sku: { contains: value, mode: 'insensitive' } },
-        { description: { contains: value, mode: 'insensitive' } },
-      ]
+      const value = `%${search.toLowerCase()}%`
+      const baseIndex = values.length + 1
+      filters.push(
+        `(LOWER(name) LIKE $${baseIndex} OR LOWER(sku) LIKE $${baseIndex + 1} OR LOWER(description) LIKE $${baseIndex + 2})`,
+      )
+      values.push(value, value, value)
     }
 
-    const category = searchParams.get('category')
     if (category) {
-      where.category = { contains: category, mode: 'insensitive' }
+      const idx = values.length + 1
+      filters.push(`category ILIKE $${idx}`)
+      values.push(`%${category}%`)
     }
 
-    const total = await prisma.product.count({ where })
-    const products = await prisma.product.findMany({
-      where,
-      skip,
-      take: limit,
-      orderBy: { createdAt: 'desc' },
-    })
+    const whereClause = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : ''
+
+    const countResult = await pgPool.query(
+      `
+      SELECT COUNT(*)::int AS total
+      FROM "Product"
+      ${whereClause}
+      `,
+      values,
+    )
+    const total: number = countResult.rows[0]?.total ?? 0
+
+    const dataValues = [...values, limit, offset]
+    const productsResult = await pgPool.query(
+      `
+      SELECT
+        id, sku, name, category, description, "technicalDescription", coding, pins,
+        "ipRating", gender, "connectorType", material, voltage, current,
+        "temperatureRange", "wireGauge", "cableLength", price, "priceType",
+        "inStock", "stockQuantity", images, "datasheetUrl",
+        "createdAt", "updatedAt"
+      FROM "Product"
+      ${whereClause}
+      ORDER BY "createdAt" DESC
+      LIMIT $${dataValues.length - 1}
+      OFFSET $${dataValues.length}
+      `,
+      dataValues,
+    )
+    const products = productsResult.rows
 
     return NextResponse.json({
       products,
@@ -94,47 +148,65 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/products - create product (admin-only, auth to be wired)
-export async function POST(req: NextRequest) {
+// POST /api/products - create product (admin-only)
+export const POST = requireAdmin(async (req: NextRequest) => {
   try {
-    const token = req.cookies.get('admin_token')?.value
-    const decoded = token ? verifyToken(token) : null
-
-    if (!decoded || (decoded.role !== 'admin' && decoded.role !== 'superadmin')) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
     const body = await req.json()
     const parsed = productSchema.parse(body)
 
-    const product = await prisma.product.create({
-      data: {
-        sku: parsed.sku,
-        name: parsed.name,
-        category: parsed.category,
-        description: parsed.description,
-        technicalDescription: parsed.technicalDescription,
-        coding: parsed.coding as any,
-        pins: parsed.pins,
-        ipRating: parsed.ipRating as any,
-        gender: parsed.gender as any,
-        connectorType: parsed.connectorType as any,
-        material: parsed.specifications.material,
-        voltage: parsed.specifications.voltage,
-        current: parsed.specifications.current,
-        temperatureRange: parsed.specifications.temperatureRange,
-        wireGauge: parsed.specifications.wireGauge,
-        cableLength: parsed.specifications.cableLength,
-        price: parsed.price,
-        priceType: parsed.priceType as any,
-        inStock: parsed.inStock,
-        stockQuantity: parsed.stockQuantity,
-        images: parsed.images,
-        datasheetUrl: parsed.datasheetUrl || null,
-      },
-    })
+    const result = await pgPool.query(
+      `
+      INSERT INTO "Product" (
+        sku, name, category, description, "technicalDescription",
+        coding, pins, "ipRating", gender, "connectorType",
+        material, voltage, current, "temperatureRange",
+        "wireGauge", "cableLength", price, "priceType",
+        "inStock", "stockQuantity", images, "datasheetUrl",
+        "createdAt", "updatedAt"
+      )
+      VALUES (
+        $1, $2, $3, $4, $5,
+        $6, $7, $8, $9, $10,
+        $11, $12, $13, $14,
+        $15, $16, $17, $18,
+        $19, $20, $21, $22,
+        NOW(), NOW()
+      )
+      RETURNING
+        id, sku, name, category, description, "technicalDescription",
+        coding, pins, "ipRating", gender, "connectorType",
+        material, voltage, current, "temperatureRange",
+        "wireGauge", "cableLength", price, "priceType",
+        "inStock", "stockQuantity", images, "datasheetUrl",
+        "createdAt", "updatedAt"
+      `,
+      [
+        parsed.sku,
+        parsed.name,
+        parsed.category,
+        parsed.description,
+        parsed.technicalDescription,
+        parsed.coding,
+        parsed.pins,
+        parsed.ipRating,
+        parsed.gender,
+        parsed.connectorType,
+        parsed.specifications.material,
+        parsed.specifications.voltage,
+        parsed.specifications.current,
+        parsed.specifications.temperatureRange,
+        parsed.specifications.wireGauge ?? null,
+        parsed.specifications.cableLength ?? null,
+        parsed.price ?? null,
+        parsed.priceType,
+        parsed.inStock,
+        parsed.stockQuantity ?? null,
+        parsed.images,
+        parsed.datasheetUrl ?? null,
+      ],
+    )
 
-    return NextResponse.json(product, { status: 201 })
+    return NextResponse.json(result.rows[0], { status: 201 })
   } catch (error: any) {
     if (error?.name === 'ZodError') {
       return NextResponse.json(
@@ -152,5 +224,5 @@ export async function POST(req: NextRequest) {
     console.error('Error creating product:', error)
     return NextResponse.json({ error: 'Failed to create product' }, { status: 400 })
   }
-}
+})
 

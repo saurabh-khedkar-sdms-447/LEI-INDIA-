@@ -16,7 +16,10 @@ interface ProductPageProps {
 }
 
 async function getProduct(id: string): Promise<Product | null> {
-  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? ''}/api/products/${id}`, {
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+  const url = new URL(`/api/products/${id}`, baseUrl)
+  const response = await fetch(url.toString(), {
     cache: 'no-store', // Always fetch fresh data
   })
   if (!response.ok) {

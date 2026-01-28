@@ -52,8 +52,8 @@ export default function AdminLayout({
     checkAuth()
   }, [isAuthenticated, pathname, router, verifyToken])
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    await logout()
     router.push('/admin/login')
   }
 

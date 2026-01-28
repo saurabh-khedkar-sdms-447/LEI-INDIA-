@@ -1,15 +1,7 @@
-import pg from 'pg'
 import bcrypt from 'bcryptjs'
+import { createPool } from './db-connection.mjs'
 
-const { Pool } = pg
-
-if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL must be set to seed admin user')
-}
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-})
+const pool = createPool()
 
 async function main() {
   const passwordHash = await bcrypt.hash('Admin@123', 10)

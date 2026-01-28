@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { pgPool } from '@/lib/pg'
 import { productUpdateSchema } from '@/lib/product-validation'
+import { checkAdmin } from '@/lib/auth-middleware'
 
 // GET /api/products/:id
 export async function GET(
@@ -8,9 +9,21 @@ export async function GET(
   { params }: { params: { id: string } },
 ) {
   try {
-    const product = await prisma.product.findUnique({
-      where: { id: params.id },
-    })
+    const result = await pgPool.query(
+      `
+      SELECT
+        id, sku, name, category, description, "technicalDescription", coding, pins,
+        "ipRating", gender, "connectorType", material, voltage, current,
+        "temperatureRange", "wireGauge", "cableLength", price, "priceType",
+        "inStock", "stockQuantity", images, "datasheetUrl",
+        "createdAt", "updatedAt"
+      FROM "Product"
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [params.id],
+    )
+    const product = result.rows[0]
 
     if (!product) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 })
@@ -23,56 +36,103 @@ export async function GET(
   }
 }
 
-// PUT /api/products/:id
+// PUT /api/products/:id - update product (admin-only)
 export async function PUT(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
   try {
+    const auth = checkAdmin(req)
+    if (auth instanceof NextResponse) return auth
+
     const body = await req.json()
     const parsed = productUpdateSchema.parse(body)
 
-    const existing = await prisma.product.findUnique({ where: { id: params.id } })
+    const existingResult = await pgPool.query(
+      `
+      SELECT
+        id, sku, name, category, description, "technicalDescription", coding, pins,
+        "ipRating", gender, "connectorType", material, voltage, current,
+        "temperatureRange", "wireGauge", "cableLength", price, "priceType",
+        "inStock", "stockQuantity", images, "datasheetUrl"
+      FROM "Product"
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [params.id],
+    )
+    const existing = existingResult.rows[0]
     if (!existing) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 })
     }
 
-    const updated = await prisma.product.update({
-      where: { id: params.id },
-      data: {
-        sku: parsed.sku ?? existing.sku,
-        name: parsed.name ?? existing.name,
-        category: parsed.category ?? existing.category,
-        description: parsed.description ?? existing.description,
-        technicalDescription: parsed.technicalDescription ?? existing.technicalDescription,
-        coding: (parsed.coding as any) ?? existing.coding,
-        pins: parsed.pins ?? existing.pins,
-        ipRating: (parsed.ipRating as any) ?? existing.ipRating,
-        gender: (parsed.gender as any) ?? existing.gender,
-        connectorType: (parsed.connectorType as any) ?? existing.connectorType,
-        material: parsed.specifications?.material ?? existing.material,
-        voltage: parsed.specifications?.voltage ?? existing.voltage,
-        current: parsed.specifications?.current ?? existing.current,
-        temperatureRange: parsed.specifications?.temperatureRange ?? existing.temperatureRange,
-        wireGauge:
-          parsed.specifications && 'wireGauge' in parsed.specifications
-            ? parsed.specifications.wireGauge
-            : existing.wireGauge,
-        cableLength:
-          parsed.specifications && 'cableLength' in parsed.specifications
-            ? parsed.specifications.cableLength
-            : existing.cableLength,
-        price: parsed.price ?? existing.price,
-        priceType: (parsed.priceType as any) ?? existing.priceType,
-        inStock: parsed.inStock ?? existing.inStock,
-        stockQuantity: parsed.stockQuantity ?? existing.stockQuantity,
-        images: parsed.images ?? existing.images,
-        datasheetUrl:
-          parsed.datasheetUrl !== undefined ? parsed.datasheetUrl || null : existing.datasheetUrl,
-      },
-    })
+    const updatedResult = await pgPool.query(
+      `
+      UPDATE "Product"
+      SET
+        sku = $1,
+        name = $2,
+        category = $3,
+        description = $4,
+        "technicalDescription" = $5,
+        coding = $6,
+        pins = $7,
+        "ipRating" = $8,
+        gender = $9,
+        "connectorType" = $10,
+        material = $11,
+        voltage = $12,
+        current = $13,
+        "temperatureRange" = $14,
+        "wireGauge" = $15,
+        "cableLength" = $16,
+        price = $17,
+        "priceType" = $18,
+        "inStock" = $19,
+        "stockQuantity" = $20,
+        images = $21,
+        "datasheetUrl" = $22,
+        "updatedAt" = NOW()
+      WHERE id = $23
+      RETURNING
+        id, sku, name, category, description, "technicalDescription", coding, pins,
+        "ipRating", gender, "connectorType", material, voltage, current,
+        "temperatureRange", "wireGauge", "cableLength", price, "priceType",
+        "inStock", "stockQuantity", images, "datasheetUrl",
+        "createdAt", "updatedAt"
+      `,
+      [
+        parsed.sku ?? existing.sku,
+        parsed.name ?? existing.name,
+        parsed.category ?? existing.category,
+        parsed.description ?? existing.description,
+        parsed.technicalDescription ?? existing.technicalDescription,
+        parsed.coding ?? existing.coding,
+        parsed.pins ?? existing.pins,
+        parsed.ipRating ?? existing.ipRating,
+        parsed.gender ?? existing.gender,
+        parsed.connectorType ?? existing.connectorType,
+        parsed.specifications?.material ?? existing.material,
+        parsed.specifications?.voltage ?? existing.voltage,
+        parsed.specifications?.current ?? existing.current,
+        parsed.specifications?.temperatureRange ?? existing.temperatureRange,
+        parsed.specifications && 'wireGauge' in parsed.specifications
+          ? parsed.specifications.wireGauge
+          : existing.wireGauge,
+        parsed.specifications && 'cableLength' in parsed.specifications
+          ? parsed.specifications.cableLength
+          : existing.cableLength,
+        parsed.price ?? existing.price,
+        parsed.priceType ?? existing.priceType,
+        parsed.inStock ?? existing.inStock,
+        parsed.stockQuantity ?? existing.stockQuantity,
+        parsed.images ?? existing.images,
+        parsed.datasheetUrl !== undefined ? parsed.datasheetUrl || null : existing.datasheetUrl,
+        params.id,
+      ],
+    )
 
-    return NextResponse.json(updated)
+    return NextResponse.json(updatedResult.rows[0])
   } catch (error: any) {
     if (error?.name === 'ZodError') {
       return NextResponse.json(
@@ -92,18 +152,36 @@ export async function PUT(
   }
 }
 
-// DELETE /api/products/:id
+// DELETE /api/products/:id - delete product (admin-only)
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { id: string } },
 ) {
   try {
-    const existing = await prisma.product.findUnique({ where: { id: params.id } })
+    const auth = checkAdmin(req)
+    if (auth instanceof NextResponse) return auth
+
+    const existingResult = await pgPool.query(
+      `
+      SELECT id
+      FROM "Product"
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [params.id],
+    )
+    const existing = existingResult.rows[0]
     if (!existing) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 })
     }
 
-    await prisma.product.delete({ where: { id: params.id } })
+    await pgPool.query(
+      `
+      DELETE FROM "Product"
+      WHERE id = $1
+      `,
+      [params.id],
+    )
     return NextResponse.json({ message: 'Product deleted successfully' })
   } catch (error) {
     console.error('Error deleting product:', error)

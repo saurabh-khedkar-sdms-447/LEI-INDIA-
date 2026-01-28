@@ -19,7 +19,13 @@ export const metadata: Metadata = {
 
 async function getProducts(): Promise<Product[]> {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/products?limit=6`, {
+    // For server-side rendering, we need an absolute URL
+    // In Next.js, we can use the request URL or construct it properly
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+    const url = new URL('/api/products', baseUrl)
+    url.searchParams.set('limit', '6')
+    const response = await fetch(url.toString(), {
       // Use force-cache for static generation, no-store would cause dynamic rendering
       cache: 'force-cache',
       // Add timeout for builds

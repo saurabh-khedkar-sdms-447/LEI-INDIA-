@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { pgPool } from '@/lib/pg'
 import bcrypt from 'bcryptjs'
 import { generateToken } from '@/lib/jwt'
 
@@ -14,9 +14,22 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const admin = await prisma.admin.findUnique({
-      where: { username },
-    })
+    const result = await pgPool.query<{
+      id: string
+      username: string
+      password: string
+      role: string
+    }>(
+      `
+      SELECT id, username, password, role
+      FROM "Admin"
+      WHERE username = $1
+      LIMIT 1
+      `,
+      [username],
+    )
+
+    const admin = result.rows[0]
 
     if (!admin) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })

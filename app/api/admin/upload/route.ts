@@ -2,18 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { mkdir, writeFile } from 'fs/promises'
 import { join } from 'path'
-import { verifyToken } from '@/lib/jwt'
+import { checkAdmin } from '@/lib/auth-middleware'
 
 const uploadsDir = join(process.cwd(), 'public', 'uploads')
 
 // POST /api/admin/upload - upload product image (admin)
 export async function POST(req: NextRequest) {
   try {
-    const token = req.cookies.get('admin_token')?.value
-    const decoded = token ? verifyToken(token) : null
-    if (!decoded || (decoded.role !== 'admin' && decoded.role !== 'superadmin')) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    const auth = checkAdmin(req)
+    if (auth instanceof NextResponse) return auth
 
     const formData = await req.formData()
     const file = formData.get('image')

@@ -25,8 +25,18 @@ export const useAdminAuth = create<AdminAuthState>()(
         set({ user, isAuthenticated: true })
       },
 
-      logout: () => {
-        set({ user: null, isAuthenticated: false })
+      logout: async () => {
+        try {
+          // Call the logout API endpoint to clear the httpOnly cookie
+          const { apiClient } = await import('@/lib/api-client')
+          await apiClient.post('/api/admin/auth/logout')
+        } catch (error) {
+          // Even if API call fails, clear local state
+          console.error('Logout API call failed:', error)
+        } finally {
+          // Always clear local state
+          set({ user: null, isAuthenticated: false })
+        }
       },
 
       verifyToken: async () => {

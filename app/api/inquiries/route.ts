@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { prisma } from '@/lib/db'
-import { verifyToken } from '@/lib/jwt'
+import { pgPool } from '@/lib/pg'
+import { requireAdmin } from '@/lib/auth-middleware'
 
 const inquirySchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').trim(),
@@ -26,20 +26,20 @@ export async function POST(req: NextRequest) {
     const json = await req.json()
     const data = inquirySchema.parse(json)
 
-    const inquiry = await prisma.inquiry.create({
-      data: {
-        name: data.name,
-        email: data.email,
-        phone: data.phone,
-        company: data.company,
-        subject: data.subject,
-        message: data.message,
-        read: false,
-        responded: false,
-      },
-    })
+    const result = await pgPool.query(
+      `
+      INSERT INTO "Inquiry" (
+        name, email, phone, company, subject, message, read, responded,
+        "createdAt", "updatedAt"
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, false, false, NOW(), NOW())
+      RETURNING id, name, email, phone, company, subject, message, read, responded,
+                "createdAt", "updatedAt"
+      `,
+      [data.name, data.email, data.phone ?? null, data.company ?? null, data.subject, data.message],
+    )
 
-    return NextResponse.json(inquiry, { status: 201 })
+    return NextResponse.json(result.rows[0], { status: 201 })
   } catch (error: any) {
     if (error?.name === 'ZodError') {
       return NextResponse.json(
@@ -63,19 +63,19 @@ export async function POST(req: NextRequest) {
 }
 
 // GET /api/inquiries - list inquiries (admin)
-export async function GET(req: NextRequest) {
+export const GET = requireAdmin(async (req: NextRequest) => {
   try {
-    const token = req.cookies.get('admin_token')?.value
-    const decoded = token ? verifyToken(token) : null
-    if (!decoded || (decoded.role !== 'admin' && decoded.role !== 'superadmin')) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
 
-    const inquiries = await prisma.inquiry.findMany({
-      orderBy: { createdAt: 'desc' },
-    })
+    const result = await pgPool.query(
+      `
+      SELECT id, name, email, phone, company, subject, message, read, responded,
+             "createdAt", "updatedAt"
+      FROM "Inquiry"
+      ORDER BY "createdAt" DESC
+      `,
+    )
 
-    return NextResponse.json(inquiries)
+    return NextResponse.json(result.rows)
   } catch (error) {
     console.error('Error fetching inquiries:', error)
     return NextResponse.json(
@@ -83,5 +83,5 @@ export async function GET(req: NextRequest) {
       { status: 500 },
     )
   }
-}
+})
 

@@ -55,7 +55,15 @@ async function getProducts(searchParams: { [key: string]: string | string[] | un
   if (categoryName) params.set('category', categoryName)
   
   try {
-    const response = await fetch(`/api/products?${params.toString()}`, {
+    // For server-side rendering, we need an absolute URL
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+    const url = new URL('/api/products', baseUrl)
+    // Add query parameters
+    params.forEach((value, key) => {
+      url.searchParams.set(key, value)
+    })
+    const response = await fetch(url.toString(), {
       cache: 'no-store', // Always fetch fresh data
     })
     if (!response.ok) {
