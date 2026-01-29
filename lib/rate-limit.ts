@@ -1,38 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Ratelimit } from '@upstash/ratelimit'
-import { Redis } from '@upstash/redis'
 import { log } from './logger'
 
-// Initialize Redis client (optional - falls back to in-memory if not configured)
-let redis: Redis | null = null
-let ratelimit: Ratelimit | null = null
-
-// Try to initialize Upstash Redis if URL is provided
-const UPSTASH_REDIS_REST_URL = process.env.UPSTASH_REDIS_REST_URL
-const UPSTASH_REDIS_REST_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN
-
-if (UPSTASH_REDIS_REST_URL && UPSTASH_REDIS_REST_TOKEN) {
-  try {
-    redis = new Redis({
-      url: UPSTASH_REDIS_REST_URL,
-      token: UPSTASH_REDIS_REST_TOKEN,
-    })
-    
-    // Create rate limiter with different limits for different endpoint types
-    ratelimit = new Ratelimit({
-      redis,
-      limiter: Ratelimit.slidingWindow(10, '10 s'), // Default: 10 requests per 10 seconds
-      analytics: true,
-      prefix: '@leiindias/ratelimit',
-    })
-    
-    log.info('Rate limiting initialized with Upstash Redis')
-  } catch (error) {
-    log.warn('Failed to initialize Upstash Redis, using in-memory fallback', error)
-  }
-}
-
-// In-memory fallback rate limiter (simple implementation)
+// In-memory rate limiter implementation
 class InMemoryRateLimiter {
   private requests: Map<string, number[]> = new Map()
   private readonly windowMs: number
@@ -148,15 +117,8 @@ export async function rateLimit(
   // Get identifier
   const id = identifier ? identifier(req) : getIdentifier(req)
 
-  // Check rate limit
-  let result
-  if (ratelimit && redis) {
-    // Use Upstash if available
-    result = await ratelimit.limit(id)
-  } else {
-    // Use in-memory fallback
-    result = await limiter.limit(id)
-  }
+  // Check rate limit using in-memory limiter
+  const result = await limiter.limit(id)
 
   if (!result.success) {
     log.warn('Rate limit exceeded', { identifier: id, pathname, limit: result.limit })

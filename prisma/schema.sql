@@ -146,10 +146,15 @@ CREATE TABLE IF NOT EXISTS "Career" (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,
   slug TEXT NOT NULL UNIQUE,
+  department TEXT,
   location TEXT,
   type TEXT,
   description TEXT,
   requirements TEXT,
+  responsibilities TEXT,
+  benefits TEXT,
+  salary TEXT,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

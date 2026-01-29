@@ -53,7 +53,7 @@ const careerSchema = z.object({
 type CareerFormData = z.infer<typeof careerSchema>
 
 interface Career {
-  _id: string
+  id: string
   title: string
   department: string
   location: string
@@ -98,10 +98,21 @@ export default function AdminCareersPage() {
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || ''}/api/careers`,
       )
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to fetch careers' }))
+        throw new Error(errorData.error || 'Failed to fetch careers')
+      }
       const data = await response.json()
-      setCareers(data)
+      // Ensure data is an array
+      if (Array.isArray(data)) {
+        setCareers(data)
+      } else {
+        console.error('Invalid response format:', data)
+        setCareers([])
+      }
     } catch (error) {
       console.error('Failed to fetch careers:', error)
+      setCareers([])
     } finally {
       setIsLoading(false)
     }
@@ -137,7 +148,7 @@ export default function AdminCareersPage() {
 
     try {
       const url = editingCareer
-        ? `${process.env.NEXT_PUBLIC_API_URL || ''}/api/careers/${editingCareer._id}`
+        ? `${process.env.NEXT_PUBLIC_API_URL || ''}/api/careers/${editingCareer.id}`
         : `${process.env.NEXT_PUBLIC_API_URL || ''}/api/careers`
 
       const method = editingCareer ? 'PUT' : 'POST'
@@ -224,7 +235,7 @@ export default function AdminCareersPage() {
                 </TableRow>
               ) : (
                 careers.map((career) => (
-                  <TableRow key={career._id}>
+                  <TableRow key={career.id}>
                     <TableCell className="font-medium">{career.title}</TableCell>
                     <TableCell>{career.department}</TableCell>
                     <TableCell>{career.location}</TableCell>
@@ -248,7 +259,7 @@ export default function AdminCareersPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDelete(career._id)}
+                          onClick={() => handleDelete(career.id)}
                         >
                           <Trash2 className="h-4 w-4 text-red-500" />
                         </Button>

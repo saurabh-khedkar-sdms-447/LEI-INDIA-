@@ -9,7 +9,7 @@ import { MapPin, Briefcase, Clock, Mail } from "lucide-react"
 import Link from "next/link"
 
 interface JobOpening {
-  _id: string
+  id: string
   title: string
   department: string
   location: string
@@ -56,10 +56,21 @@ export default function CareersPage() {
   const fetchCareers = async () => {
     try {
       const response = await fetch('/api/careers')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to fetch careers' }))
+        throw new Error(errorData.error || 'Failed to fetch careers')
+      }
       const data = await response.json()
-      setJobOpenings(data)
+      // Ensure data is an array
+      if (Array.isArray(data)) {
+        setJobOpenings(data)
+      } else {
+        console.error('Invalid response format:', data)
+        setJobOpenings([])
+      }
     } catch (error) {
       console.error('Failed to fetch careers:', error)
+      setJobOpenings([])
     } finally {
       setIsLoading(false)
     }
@@ -135,24 +146,30 @@ export default function CareersPage() {
             ) : (
               <div className="space-y-6 max-w-4xl mx-auto">
                 {jobOpenings.map((job) => (
-                  <Card key={job._id} className="hover:shadow-lg transition-shadow">
+                  <Card key={job.id} className="hover:shadow-lg transition-shadow">
                     <CardHeader>
                       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                         <div className="flex-1">
                           <CardTitle className="text-xl mb-2">{job.title}</CardTitle>
                           <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-                            <div className="flex items-center gap-1">
-                              <Briefcase className="h-4 w-4" />
-                              <span>{job.department}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <MapPin className="h-4 w-4" />
-                              <span>{job.location}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Clock className="h-4 w-4" />
-                              <span>{job.type}</span>
-                            </div>
+                            {job.department && (
+                              <div className="flex items-center gap-1">
+                                <Briefcase className="h-4 w-4" />
+                                <span>{job.department}</span>
+                              </div>
+                            )}
+                            {job.location && (
+                              <div className="flex items-center gap-1">
+                                <MapPin className="h-4 w-4" />
+                                <span>{job.location}</span>
+                              </div>
+                            )}
+                            {job.type && (
+                              <div className="flex items-center gap-1">
+                                <Clock className="h-4 w-4" />
+                                <span>{job.type}</span>
+                              </div>
+                            )}
                             {job.salary && (
                               <div className="flex items-center gap-1">
                                 <span className="font-medium">{job.salary}</span>
@@ -161,7 +178,7 @@ export default function CareersPage() {
                           </div>
                         </div>
                         <Button asChild>
-                          <Link href={`/careers/${job._id}`}>
+                          <Link href={`/careers/${job.id}`}>
                             Apply Now
                           </Link>
                         </Button>

@@ -23,12 +23,15 @@ const envSchema = z.object({
   
   // Email service is disabled - no email-related env vars needed
   
-  // Rate Limiting (optional - uses in-memory fallback if not provided)
-  UPSTASH_REDIS_REST_URL: z.string().url().optional(),
-  UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
+  // Rate Limiting uses in-memory implementation (no external dependencies needed)
 })
 
 type Env = z.infer<typeof envSchema>
+
+// Helper function to convert empty strings to undefined for optional fields
+const emptyToUndefined = (value: string | undefined): string | undefined => {
+  return value === '' ? undefined : value
+}
 
 // Validate environment variables
 function validateEnv(): Env {
@@ -38,13 +41,11 @@ function validateEnv(): Env {
       JWT_SECRET: process.env.JWT_SECRET,
       JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN,
       NODE_ENV: process.env.NODE_ENV,
-      NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
-      NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
-      LOG_LEVEL: process.env.LOG_LEVEL,
-      SENTRY_DSN: process.env.SENTRY_DSN,
-      SENTRY_ENVIRONMENT: process.env.SENTRY_ENVIRONMENT,
-      UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
-      UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
+      NEXT_PUBLIC_APP_URL: emptyToUndefined(process.env.NEXT_PUBLIC_APP_URL),
+      NEXT_PUBLIC_API_URL: emptyToUndefined(process.env.NEXT_PUBLIC_API_URL),
+      LOG_LEVEL: emptyToUndefined(process.env.LOG_LEVEL),
+      SENTRY_DSN: emptyToUndefined(process.env.SENTRY_DSN),
+      SENTRY_ENVIRONMENT: emptyToUndefined(process.env.SENTRY_ENVIRONMENT),
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -75,6 +76,4 @@ export const {
   LOG_LEVEL,
   SENTRY_DSN,
   SENTRY_ENVIRONMENT,
-  UPSTASH_REDIS_REST_URL,
-  UPSTASH_REDIS_REST_TOKEN,
 } = env
