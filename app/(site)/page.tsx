@@ -23,12 +23,17 @@ export const dynamic = 'force-dynamic'
 async function getProducts(): Promise<Product[]> {
   try {
     // For server-side rendering, we need an absolute URL
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
-    const url = new URL('/api/products', baseUrl)
-    url.searchParams.set('limit', '6')
+    // Ensure baseUrl is never empty - if NEXT_PUBLIC_API_URL is empty string, use localhost
+    const envApiUrl = process.env.NEXT_PUBLIC_API_URL
+    const baseUrl = envApiUrl && envApiUrl.trim() !== '' 
+      ? envApiUrl 
+      : (process.env.VERCEL_URL 
+          ? `https://${process.env.VERCEL_URL}` 
+          : `http://localhost:${process.env.PORT || 3000}`)
     
-    const response = await fetch(url.toString(), {
+    const apiUrl = `${baseUrl}/api/products?limit=6`
+    
+    const response = await fetch(apiUrl, {
       cache: 'no-store', // Always fetch fresh data
       signal: AbortSignal.timeout(5000), // 5 second timeout
     })
@@ -50,10 +55,13 @@ async function getCategories(): Promise<Category[]> {
   try {
     // Construct full URL for server component fetch
     // In Next.js server components, we need to use absolute URLs or localhost
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 
-                   (typeof window === 'undefined' 
-                     ? `http://localhost:${process.env.PORT || 3000}`
-                     : '')
+    // Ensure baseUrl is never empty - if NEXT_PUBLIC_API_URL is empty string, use localhost
+    const envApiUrl = process.env.NEXT_PUBLIC_API_URL
+    const baseUrl = envApiUrl && envApiUrl.trim() !== ''
+      ? envApiUrl
+      : (process.env.VERCEL_URL
+          ? `https://${process.env.VERCEL_URL}`
+          : `http://localhost:${process.env.PORT || 3000}`)
     
     const apiUrl = `${baseUrl}/api/categories?limit=50`
     

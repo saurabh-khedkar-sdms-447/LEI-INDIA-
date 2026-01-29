@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -12,6 +13,8 @@ interface CategoryCardProps {
 }
 
 export function CategoryCard({ category }: CategoryCardProps) {
+  const [imageError, setImageError] = useState(false)
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -23,13 +26,14 @@ export function CategoryCard({ category }: CategoryCardProps) {
       <Link href={`/products?category=${category.slug}`}>
         <Card className="h-full flex flex-col hover:shadow-lg transition-shadow cursor-pointer group">
           <div className="relative h-48 w-full bg-gradient-to-br from-primary/20 via-primary/10 to-primary/5 overflow-hidden">
-            {category.image ? (
+            {category.image && !imageError ? (
               <Image
                 src={category.image}
                 alt={category.name}
                 fill
                 className="object-cover group-hover:scale-110 transition-transform duration-300"
                 sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                onError={() => setImageError(true)}
               />
             ) : (
               <div className="absolute inset-0 flex items-center justify-center">
