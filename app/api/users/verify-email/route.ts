@@ -8,6 +8,12 @@ import { reportApiError } from '@/lib/error-reporting'
 
 // GET /api/users/verify-email?token=... - verify email with token
 export async function GET(req: NextRequest) {
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(req)
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+
   try {
     const { searchParams } = new URL(req.url)
     const token = searchParams.get('token')

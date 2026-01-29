@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { pgPool } from '@/lib/pg'
 import { log } from '@/lib/logger'
+import { rateLimit } from '@/lib/rate-limit'
 
 // GET /api/resources - public
 export async function GET(_req: NextRequest) {
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(_req)
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+
   try {
     const result = await pgPool.query(
       `
-      SELECT id, title, type, description, url, "createdAt", "updatedAt"
+      SELECT id, title, slug, description, url, "createdAt", "updatedAt"
       FROM "Resource"
       ORDER BY "createdAt" DESC
       `,

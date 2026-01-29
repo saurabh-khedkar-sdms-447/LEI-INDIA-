@@ -35,7 +35,8 @@ export async function GET(req: NextRequest) {
     const values: any[] = []
 
     if (idsParam) {
-      const ids = idsParam.split(',').map((id) => id.trim()).filter(Boolean)
+      const { isValidUUID } = await import('@/lib/validation')
+      const ids = idsParam.split(',').map((id) => id.trim()).filter(Boolean).filter(isValidUUID)
       if (ids.length > 0) {
         const placeholders = ids.map((_, idx) => `$${values.length + idx + 1}`)
         filters.push(`id IN (${placeholders.join(',')})`)
@@ -129,7 +130,7 @@ export async function GET(req: NextRequest) {
         id, sku, name, category, description, "technicalDescription", coding, pins,
         "ipRating", gender, "connectorType", material, voltage, current,
         "temperatureRange", "wireGauge", "cableLength", price, "priceType",
-        "inStock", "stockQuantity", images, "datasheetUrl",
+        "inStock", "stockQuantity", images, documents, "datasheetUrl",
         "createdAt", "updatedAt"
       FROM "Product"
       ${whereClause}
@@ -187,7 +188,7 @@ export const POST = requireAdmin(async (req: NextRequest) => {
         coding, pins, "ipRating", gender, "connectorType",
         material, voltage, current, "temperatureRange",
         "wireGauge", "cableLength", price, "priceType",
-        "inStock", "stockQuantity", images, "datasheetUrl",
+        "inStock", "stockQuantity", images, documents, "datasheetUrl",
         "createdAt", "updatedAt"
       )
       VALUES (
@@ -195,7 +196,7 @@ export const POST = requireAdmin(async (req: NextRequest) => {
         $6, $7, $8, $9, $10,
         $11, $12, $13, $14,
         $15, $16, $17, $18,
-        $19, $20, $21, $22,
+        $19, $20, $21, $22, $23,
         NOW(), NOW()
       )
       RETURNING
@@ -203,7 +204,7 @@ export const POST = requireAdmin(async (req: NextRequest) => {
         coding, pins, "ipRating", gender, "connectorType",
         material, voltage, current, "temperatureRange",
         "wireGauge", "cableLength", price, "priceType",
-        "inStock", "stockQuantity", images, "datasheetUrl",
+        "inStock", "stockQuantity", images, documents, "datasheetUrl",
         "createdAt", "updatedAt"
       `,
       [
@@ -228,6 +229,7 @@ export const POST = requireAdmin(async (req: NextRequest) => {
         parsed.inStock,
         parsed.stockQuantity ?? null,
         parsed.images,
+        parsed.documents ?? [],
         parsed.datasheetUrl ?? null,
       ],
     )

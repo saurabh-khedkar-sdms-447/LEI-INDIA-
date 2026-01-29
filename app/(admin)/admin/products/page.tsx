@@ -37,6 +37,7 @@ import {
   Loader2,
   Upload,
   X,
+  FileText,
 } from 'lucide-react'
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog'
 import { useForm } from 'react-hook-form'
@@ -65,6 +66,11 @@ const productSchema = z.object({
   inStock: z.boolean(),
   stockQuantity: z.number().optional(),
   images: z.array(z.string()).optional(),
+  documents: z.array(z.object({
+    url: z.string(),
+    filename: z.string(),
+    size: z.number().optional(),
+  })).optional(),
   datasheetUrl: z.string().optional(),
 })
 
@@ -78,6 +84,8 @@ export default function AdminProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [uploadingImages, setUploadingImages] = useState(false)
   const [productImages, setProductImages] = useState<string[]>([])
+  const [uploadingDocuments, setUploadingDocuments] = useState(false)
+  const [productDocuments, setProductDocuments] = useState<Array<{ url: string; filename: string; size?: number }>>([])
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [productToDelete, setProductToDelete] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -96,6 +104,7 @@ export default function AdminProductsPage() {
       priceType: 'quote',
       inStock: true,
       images: [],
+      documents: [],
     },
   })
 
@@ -182,13 +191,79 @@ export default function AdminProductsPage() {
     setValue('images', newImages)
   }
 
+  const handleDocumentUpload = async (file: File) => {
+    if (!isAuthenticated) {
+      alert('Authentication required. Please log in again.')
+      return
+    }
+
+    // Validate file size (50MB limit)
+    if (file.size > 50 * 1024 * 1024) {
+      alert('Document size must be less than 50MB')
+      return
+    }
+
+    // Validate file type
+    const allowedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ]
+    if (!allowedTypes.includes(file.type)) {
+      alert('Please upload a PDF or Word document (.pdf, .doc, .docx)')
+      return
+    }
+
+    setUploadingDocuments(true)
+    try {
+      const formData = new FormData()
+      formData.append('document', file)
+      formData.append('type', 'document')
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || ''}/api/admin/upload`,
+        {
+          method: 'POST',
+          body: formData,
+        }
+      )
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Upload failed' }))
+        throw new Error(errorData.error || 'Upload failed')
+      }
+
+      const data = await response.json()
+      const newDocuments = [...productDocuments, {
+        url: data.url,
+        filename: data.filename || file.name,
+        size: data.size || file.size,
+      }]
+      setProductDocuments(newDocuments)
+      setValue('documents', newDocuments)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to upload document. Please try again.'
+      alert(errorMessage)
+    } finally {
+      setUploadingDocuments(false)
+    }
+  }
+
+  const removeDocument = (index: number) => {
+    const newDocuments = productDocuments.filter((_, i) => i !== index)
+    setProductDocuments(newDocuments)
+    setValue('documents', newDocuments)
+  }
+
   const openCreateDialog = () => {
     setEditingProduct(null)
     setProductImages([])
+    setProductDocuments([])
     reset({
       priceType: 'quote',
       inStock: true,
       images: [],
+      documents: [],
     })
     setIsDialogOpen(true)
   }
@@ -196,6 +271,7 @@ export default function AdminProductsPage() {
   const openEditDialog = (product: Product) => {
     setEditingProduct(product)
     setProductImages(product.images || [])
+    setProductDocuments(product.documents || [])
     reset({
       ...product,
       pins: product.pins as any,
@@ -205,6 +281,7 @@ export default function AdminProductsPage() {
       'specifications.temperatureRange': product.specifications.temperatureRange,
       'specifications.wireGauge': product.specifications.wireGauge,
       'specifications.cableLength': product.specifications.cableLength,
+      documents: product.documents || [],
     })
     setIsDialogOpen(true)
   }
@@ -227,6 +304,7 @@ export default function AdminProductsPage() {
           cableLength: data['specifications.cableLength'],
         },
         images: productImages,
+        documents: productDocuments,
       }
 
       const url = editingProduct
@@ -252,6 +330,7 @@ export default function AdminProductsPage() {
       await fetchProducts()
       reset()
       setProductImages([])
+      setProductDocuments([])
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to save product. Please try again.'
       alert(errorMessage)
@@ -632,6 +711,72 @@ export default function AdminProductsPage() {
                       </Button>
                     </div>
                   ))}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <Label>Product Documents</Label>
+              <p className="text-sm text-gray-500 mb-2">Upload PDF or Word documents (max 50MB each)</p>
+              <div className="mt-2 space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Input
+                    type="file"
+                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) handleDocumentUpload(file)
+                    }}
+                    disabled={uploadingDocuments}
+                    className="flex-1"
+                  />
+                  {uploadingDocuments && (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  )}
+                </div>
+                <div className="space-y-2">
+                  {productDocuments.map((doc, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-3 border rounded-md bg-gray-50"
+                    >
+                      <div className="flex items-center space-x-2 flex-1 min-w-0">
+                        <FileText className="h-5 w-5 text-gray-500 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {doc.filename}
+                          </p>
+                          {doc.size && (
+                            <p className="text-xs text-gray-500">
+                              {(doc.size / 1024 / 1024).toFixed(2)} MB
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <a
+                          href={`${process.env.NEXT_PUBLIC_API_URL || ''}${doc.url}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-blue-600 hover:text-blue-800"
+                        >
+                          View
+                        </a>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-red-500 hover:text-red-700"
+                          onClick={() => removeDocument(index)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                  {productDocuments.length === 0 && (
+                    <p className="text-sm text-gray-500 italic">No documents uploaded</p>
+                  )}
                 </div>
               </div>
             </div>

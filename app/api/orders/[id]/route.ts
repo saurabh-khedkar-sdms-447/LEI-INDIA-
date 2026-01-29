@@ -18,9 +18,20 @@ export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(req)
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+
   try {
     const auth = checkAdmin(req)
     if (auth instanceof NextResponse) return auth
+
+    const { isValidUUID } = await import('@/lib/validation')
+    if (!isValidUUID(params.id)) {
+      return NextResponse.json({ error: 'Invalid order ID format' }, { status: 400 })
+    }
 
     const result = await pgPool.query(
       `
@@ -88,6 +99,11 @@ export async function PUT(
   try {
     const auth = checkAdmin(req)
     if (auth instanceof NextResponse) return auth
+
+    const { isValidUUID } = await import('@/lib/validation')
+    if (!isValidUUID(params.id)) {
+      return NextResponse.json({ error: 'Invalid order ID format' }, { status: 400 })
+    }
 
     const json = await req.json()
     const data = orderUpdateSchema.parse(json)

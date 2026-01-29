@@ -11,7 +11,18 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } },
 ) {
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(_req)
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+
   try {
+    const { isValidUUID } = await import('@/lib/validation')
+    if (!isValidUUID(params.id)) {
+      return NextResponse.json({ error: 'Invalid category ID format' }, { status: 400 })
+    }
+
     const result = await pgPool.query(
       `
       SELECT id, name, slug, description, image, "parentId", "createdAt", "updatedAt"
@@ -54,6 +65,12 @@ export async function PUT(
   try {
     const auth = checkAdmin(req)
     if (auth instanceof NextResponse) return auth
+
+    const { isValidUUID } = await import('@/lib/validation')
+    if (!isValidUUID(params.id)) {
+      return NextResponse.json({ error: 'Invalid category ID format' }, { status: 400 })
+    }
+
     const body = await req.json()
     const parsed = categoryUpdateSchema.parse(body)
 
@@ -134,6 +151,12 @@ export async function DELETE(
   try {
     const auth = checkAdmin(req)
     if (auth instanceof NextResponse) return auth
+
+    const { isValidUUID } = await import('@/lib/validation')
+    if (!isValidUUID(params.id)) {
+      return NextResponse.json({ error: 'Invalid category ID format' }, { status: 400 })
+    }
+
     const existingResult = await pgPool.query(
       `
       SELECT id
@@ -148,13 +171,18 @@ export async function DELETE(
       return NextResponse.json({ error: 'Category not found' }, { status: 404 })
     }
 
-    await pgPool.query(
+    const result = await pgPool.query(
       `
       DELETE FROM "Category"
       WHERE id = $1
+      RETURNING id
       `,
       [params.id],
     )
+
+    if (result.rows.length === 0) {
+      return NextResponse.json({ error: 'Category not found' }, { status: 404 })
+    }
     return NextResponse.json({ message: 'Category deleted successfully' })
   } catch (error) {
     log.error('Error deleting category', error)

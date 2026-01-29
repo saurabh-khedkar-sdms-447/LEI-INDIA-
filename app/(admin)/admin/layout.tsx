@@ -17,6 +17,8 @@ import {
   FileText,
   Briefcase,
   Phone,
+  Image as ImageIcon,
+  FolderTree,
 } from 'lucide-react'
 
 export default function AdminLayout({
@@ -75,8 +77,10 @@ export default function AdminLayout({
   const navItems = [
     { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/admin/products', label: 'Products', icon: Package },
+    { href: '/admin/categories', label: 'Categories', icon: FolderTree },
     { href: '/admin/orders', label: 'Orders', icon: ShoppingCart },
     { href: '/admin/inquiries', label: 'Inquiries', icon: Mail },
+    { href: '/admin/hero-slides', label: 'Hero Slider', icon: ImageIcon },
     { href: '/admin/blogs', label: 'Blogs', icon: FileText },
     { href: '/admin/careers', label: 'Careers', icon: Briefcase },
     { href: '/admin/contact-info', label: 'Contact Info', icon: Phone },

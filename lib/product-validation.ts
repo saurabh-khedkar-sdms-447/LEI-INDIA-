@@ -34,6 +34,11 @@ export const productSchema = z.object({
   inStock: z.boolean().default(true),
   stockQuantity: z.number().int().positive().optional(),
   images: z.array(z.string()).default([]),
+  documents: z.array(z.object({
+    url: z.string(),
+    filename: z.string(),
+    size: z.number().optional(),
+  })).default([]),
   datasheetUrl: z.string().url().optional().or(z.literal('')),
   relatedProducts: z.array(z.string()).optional(),
 })

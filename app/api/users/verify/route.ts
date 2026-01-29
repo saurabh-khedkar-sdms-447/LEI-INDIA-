@@ -1,19 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { pgPool } from '@/lib/pg'
 import { verifyToken } from '@/lib/jwt'
+import { rateLimit } from '@/lib/rate-limit'
+import { log } from '@/lib/logger'
 
 export async function POST(req: NextRequest) {
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(req)
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+
   try {
     const token = req.cookies.get('user_token')?.value
 
     if (!token) {
-      return NextResponse.json({ error: 'No token provided' }, { status: 401 })
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
     const decoded = verifyToken(token)
 
     if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 })
     }
 
     const result = await pgPool.query<{
@@ -36,10 +44,17 @@ export async function POST(req: NextRequest) {
 
     const user = result.rows[0]
 
-    if (!user || !user.isActive) {
+    if (!user) {
       return NextResponse.json(
-        { error: 'User not found or inactive' },
-        { status: 401 },
+        { error: 'User not found' },
+        { status: 404 },
+      )
+    }
+
+    if (!user.isActive) {
+      return NextResponse.json(
+        { error: 'Account is deactivated' },
+        { status: 403 },
       )
     }
 
@@ -54,10 +69,11 @@ export async function POST(req: NextRequest) {
         role: user.role,
       },
     })
-  } catch {
+  } catch (error) {
+    log.error('Token verification error', error)
     return NextResponse.json(
       { error: 'Token verification failed' },
-      { status: 401 },
+      { status: 500 },
     )
   }
 }

@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS "Product" (
   "inStock" BOOLEAN NOT NULL DEFAULT FALSE,
   "stockQuantity" INTEGER,
   images JSONB NOT NULL DEFAULT '[]'::jsonb,
+  documents JSONB NOT NULL DEFAULT '[]'::jsonb,
   "datasheetUrl" TEXT,
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -169,14 +170,45 @@ CREATE TABLE IF NOT EXISTS "Resource" (
   "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS "HeroSlide" (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  subtitle TEXT,
+  description TEXT,
+  image TEXT NOT NULL,
+  "ctaText" TEXT,
+  "ctaLink" TEXT,
+  "displayOrder" INTEGER NOT NULL DEFAULT 0,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Indexes to support common queries
 CREATE INDEX IF NOT EXISTS idx_user_email ON "User"(email);
+CREATE INDEX IF NOT EXISTS idx_user_is_active ON "User"("isActive");
 CREATE INDEX IF NOT EXISTS idx_product_sku ON "Product"(sku);
 CREATE INDEX IF NOT EXISTS idx_product_category ON "Product"(category);
+CREATE INDEX IF NOT EXISTS idx_product_in_stock ON "Product"("inStock");
+CREATE INDEX IF NOT EXISTS idx_product_connector_type ON "Product"("connectorType");
+CREATE INDEX IF NOT EXISTS idx_product_coding ON "Product"(coding);
+CREATE INDEX IF NOT EXISTS idx_product_pins ON "Product"(pins);
 CREATE INDEX IF NOT EXISTS idx_order_created_at ON "Order"("createdAt");
+CREATE INDEX IF NOT EXISTS idx_order_status ON "Order"(status);
 CREATE INDEX IF NOT EXISTS idx_orderitem_order ON "OrderItem"("orderId");
+CREATE INDEX IF NOT EXISTS idx_orderitem_product ON "OrderItem"("productId");
 CREATE INDEX IF NOT EXISTS idx_category_slug ON "Category"(slug);
+CREATE INDEX IF NOT EXISTS idx_category_parent ON "Category"("parentId");
 CREATE INDEX IF NOT EXISTS idx_password_reset_token ON "PasswordResetToken"(token);
 CREATE INDEX IF NOT EXISTS idx_password_reset_user ON "PasswordResetToken"("userId");
 CREATE INDEX IF NOT EXISTS idx_user_email_verification_token ON "User"("emailVerificationToken");
+CREATE INDEX IF NOT EXISTS idx_hero_slide_active ON "HeroSlide"(active);
+CREATE INDEX IF NOT EXISTS idx_hero_slide_display_order ON "HeroSlide"("displayOrder");
+CREATE INDEX IF NOT EXISTS idx_blog_slug ON "Blog"(slug);
+CREATE INDEX IF NOT EXISTS idx_blog_published ON "Blog"(published);
+CREATE INDEX IF NOT EXISTS idx_blog_created_at ON "Blog"("createdAt");
+CREATE INDEX IF NOT EXISTS idx_career_slug ON "Career"(slug);
+CREATE INDEX IF NOT EXISTS idx_career_active ON "Career"(active);
+CREATE INDEX IF NOT EXISTS idx_inquiry_created_at ON "Inquiry"("createdAt");
+CREATE INDEX IF NOT EXISTS idx_inquiry_read ON "Inquiry"(read);
 

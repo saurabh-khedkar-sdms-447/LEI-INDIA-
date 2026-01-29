@@ -6,8 +6,7 @@ import { BentoResources } from "@/components/widgets/BentoResources"
 import { CategoryCarousel } from "@/components/widgets/CategoryCarousel"
 import { ProductCard } from "@/components/features/ProductCard"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { categories } from "@/lib/data"
-import { Product } from "@/types"
+import { Category, Product } from "@/types"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { CheckCircle2, HeadphonesIcon, Package, Globe } from "lucide-react"
@@ -46,8 +45,33 @@ async function getProducts(): Promise<Product[]> {
   }
 }
 
+async function getCategories(): Promise<Category[]> {
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+    const url = new URL('/api/categories', baseUrl)
+    url.searchParams.set('limit', '50')
+    const response = await fetch(url.toString(), {
+      cache: 'force-cache',
+      signal: AbortSignal.timeout(5000), // 5 second timeout
+    })
+    if (!response.ok) {
+      throw new Error(`API responded with status: ${response.status}`)
+    }
+    const data = await response.json()
+    return Array.isArray(data.categories) ? data.categories : []
+  } catch (error) {
+    log.warn('Failed to fetch categories for homepage', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    // Return empty array to prevent build failures
+    return []
+  }
+}
+
 export default async function HomePage() {
   const products = await getProducts()
+  const categories = await getCategories()
   const featuredProducts = products.slice(0, 6)
   const whyChooseUs = [
     {
@@ -80,19 +104,21 @@ export default async function HomePage() {
         <HeroSlider />
 
         {/* Product Categories Carousel */}
-        <section className="py-16 bg-white">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-                Product Categories
-              </h2>
-              <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                Explore our comprehensive range of industrial connectors and cables
-              </p>
+        {categories.length > 0 && (
+          <section className="py-16 bg-white">
+            <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="text-center mb-12">
+                <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+                  Product Categories
+                </h2>
+                <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                  Explore our comprehensive range of industrial connectors and cables
+                </p>
+              </div>
+              <CategoryCarousel categories={categories} />
             </div>
-            <CategoryCarousel categories={categories} />
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* Featured Products */}
         <section className="py-16 bg-gray-50">

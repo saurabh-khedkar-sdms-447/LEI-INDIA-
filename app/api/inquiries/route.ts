@@ -79,7 +79,22 @@ export async function POST(req: NextRequest) {
 
 // GET /api/inquiries - list inquiries (admin)
 export const GET = requireAdmin(async (req: NextRequest) => {
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(req)
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+
   try {
+    const { searchParams } = new URL(req.url)
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10) || 20))
+    const offset = (page - 1) * limit
+
+    const countResult = await pgPool.query(
+      `SELECT COUNT(*)::int AS total FROM "Inquiry"`,
+    )
+    const total: number = countResult.rows[0]?.total ?? 0
 
     const result = await pgPool.query(
       `
@@ -87,10 +102,23 @@ export const GET = requireAdmin(async (req: NextRequest) => {
              "createdAt", "updatedAt"
       FROM "Inquiry"
       ORDER BY "createdAt" DESC
+      LIMIT $1
+      OFFSET $2
       `,
+      [limit, offset],
     )
 
-    return NextResponse.json(result.rows)
+    return NextResponse.json({
+      inquiries: result.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNext: page < Math.ceil(total / limit),
+        hasPrev: page > 1,
+      },
+    })
   } catch (error) {
     log.error('Error fetching inquiries', error)
     return NextResponse.json(

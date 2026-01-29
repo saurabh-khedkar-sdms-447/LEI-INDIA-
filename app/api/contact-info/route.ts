@@ -3,11 +3,13 @@ import { pgPool } from '@/lib/pg'
 import { requireAdmin } from '@/lib/auth-middleware'
 import { contactInfoSchema } from '@/lib/contact-info-validation'
 import { log } from '@/lib/logger'
+import { csrfProtection } from '@/lib/csrf'
+import { rateLimit } from '@/lib/rate-limit'
 
 async function getOrCreateContactInfo() {
   const existing = await pgPool.query(
     `
-    SELECT id, phone, email, address, "registeredAddress", "factoryLocation2",
+    SELECT id, phone, email, address, city, state, country, "registeredAddress", "factoryLocation2",
            "regionalBangalore", "regionalKolkata", "regionalGurgaon",
            "createdAt", "updatedAt"
     FROM "ContactInfo"
@@ -23,16 +25,15 @@ async function getOrCreateContactInfo() {
   const inserted = await pgPool.query(
     `
     INSERT INTO "ContactInfo" (
-      phone, email, address, "registeredAddress", "factoryLocation2",
+      phone, email, address, city, state, country, "registeredAddress", "factoryLocation2",
       "regionalBangalore", "regionalKolkata", "regionalGurgaon",
       "createdAt", "updatedAt"
     )
-    VALUES ($1, $2, $3, NULL, NULL, NULL, NULL, NULL, NOW(), NOW())
-    RETURNING id, phone, email, address, "registeredAddress", "factoryLocation2",
+    VALUES (NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NOW(), NOW())
+    RETURNING id, phone, email, address, city, state, country, "registeredAddress", "factoryLocation2",
               "regionalBangalore", "regionalKolkata", "regionalGurgaon",
               "createdAt", "updatedAt"
     `,
-    ['+91-XXX-XXXX-XXXX', 'info@leiindias.com', 'Industrial Area, India'],
   )
 
   return inserted.rows[0]
@@ -40,6 +41,12 @@ async function getOrCreateContactInfo() {
 
 // GET /api/contact-info - public
 export async function GET(_req: NextRequest) {
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(_req)
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+
   try {
     const contact = await getOrCreateContactInfo()
     return NextResponse.json(contact)
@@ -54,6 +61,18 @@ export async function GET(_req: NextRequest) {
 
 // PUT /api/contact-info - admin
 export const PUT = requireAdmin(async (req: NextRequest) => {
+  // CSRF protection
+  const csrfResponse = csrfProtection(req)
+  if (csrfResponse) {
+    return csrfResponse
+  }
+
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(req, { maxRequests: 20, windowSeconds: 60 })
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+
   try {
     const body = await req.json()
     const parsed = contactInfoSchema.parse(body)
@@ -67,21 +86,27 @@ export const PUT = requireAdmin(async (req: NextRequest) => {
         phone = $1,
         email = $2,
         address = $3,
-        "registeredAddress" = $4,
-        "factoryLocation2" = $5,
-        "regionalBangalore" = $6,
-        "regionalKolkata" = $7,
-        "regionalGurgaon" = $8,
+        city = $4,
+        state = $5,
+        country = $6,
+        "registeredAddress" = $7,
+        "factoryLocation2" = $8,
+        "regionalBangalore" = $9,
+        "regionalKolkata" = $10,
+        "regionalGurgaon" = $11,
         "updatedAt" = NOW()
-      WHERE id = $9
-      RETURNING id, phone, email, address, "registeredAddress", "factoryLocation2",
+      WHERE id = $12
+      RETURNING id, phone, email, address, city, state, country, "registeredAddress", "factoryLocation2",
                 "regionalBangalore", "regionalKolkata", "regionalGurgaon",
                 "createdAt", "updatedAt"
       `,
       [
-        parsed.phone,
-        parsed.email,
-        parsed.address,
+        parsed.phone ?? null,
+        parsed.email ?? null,
+        parsed.address ?? null,
+        parsed.city ?? null,
+        parsed.state ?? null,
+        parsed.country ?? null,
         parsed.registeredAddress ?? null,
         parsed.factoryLocation2 ?? null,
         parsed.regionalContacts?.bangalore ?? null,

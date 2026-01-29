@@ -54,7 +54,7 @@ const blogSchema = z.object({
 type BlogFormData = z.infer<typeof blogSchema>
 
 interface Blog {
-  _id: string
+  id: string
   title: string
   excerpt: string
   content: string
@@ -161,36 +161,50 @@ export default function AdminBlogsPage() {
   }
 
   const onSubmit = async (data: BlogFormData) => {
-    if (!isAuthenticated) return
+    if (!isAuthenticated) {
+      alert('Authentication required. Please log in again.')
+      return
+    }
 
     try {
       const blogData = {
         ...data,
-        image: blogImage,
+        image: blogImage || '',
       }
 
       const url = editingBlog
-        ? `${process.env.NEXT_PUBLIC_API_URL || ''}/api/blogs/${editingBlog._id}`
+        ? `${process.env.NEXT_PUBLIC_API_URL || ''}/api/blogs/${editingBlog.id}`
         : `${process.env.NEXT_PUBLIC_API_URL || ''}/api/blogs`
 
       const method = editingBlog ? 'PUT' : 'POST'
+
+      // Get CSRF token
+      const csrfResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/csrf-token`)
+      const csrfData = await csrfResponse.json()
+      const csrfToken = csrfData.token
 
       const response = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken,
         },
+        credentials: 'include',
         body: JSON.stringify(blogData),
       })
 
-      if (!response.ok) throw new Error('Failed to save blog')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to save blog' }))
+        throw new Error(errorData.error || errorData.details?.[0]?.message || 'Failed to save blog')
+      }
 
       setIsDialogOpen(false)
-      fetchBlogs()
+      await fetchBlogs()
       reset()
       setBlogImage('')
-    } catch {
-      alert('Failed to save blog')
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save blog. Please try again.'
+      alert(errorMessage)
     }
   }
 
@@ -198,18 +212,31 @@ export default function AdminBlogsPage() {
     if (!isAuthenticated || !confirm('Are you sure you want to delete this blog?')) return
 
     try {
+      // Get CSRF token
+      const csrfResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/csrf-token`)
+      const csrfData = await csrfResponse.json()
+      const csrfToken = csrfData.token
+
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || ''}/api/blogs/${id}`,
         {
           method: 'DELETE',
+          headers: {
+            'X-CSRF-Token': csrfToken,
+          },
+          credentials: 'include',
         }
       )
 
-      if (!response.ok) throw new Error('Failed to delete blog')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to delete blog' }))
+        throw new Error(errorData.error || 'Failed to delete blog')
+      }
 
-      fetchBlogs()
-    } catch {
-      alert('Failed to delete blog')
+      await fetchBlogs()
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete blog. Please try again.'
+      alert(errorMessage)
     }
   }
 
@@ -256,7 +283,7 @@ export default function AdminBlogsPage() {
                 </TableRow>
               ) : (
                 blogs.map((blog) => (
-                  <TableRow key={blog._id}>
+                  <TableRow key={blog.id}>
                     <TableCell className="font-medium">{blog.title}</TableCell>
                     <TableCell>{blog.author}</TableCell>
                     <TableCell>{blog.category}</TableCell>
@@ -282,7 +309,7 @@ export default function AdminBlogsPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDelete(blog._id)}
+                          onClick={() => handleDelete(blog.id)}
                         >
                           <Trash2 className="h-4 w-4 text-red-500" />
                         </Button>

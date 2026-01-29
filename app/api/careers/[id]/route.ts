@@ -30,9 +30,14 @@ export async function GET(
   }
 
   try {
+    const { isValidUUID } = await import('@/lib/validation')
+    if (!isValidUUID(params.id)) {
+      return NextResponse.json({ error: 'Invalid career ID format' }, { status: 400 })
+    }
+
     const result = await pgPool.query(
       `
-      SELECT id, title, department, location, type, description,
+      SELECT id, title, slug, department, location, type, description,
              requirements, responsibilities, benefits, salary, active,
              "createdAt", "updatedAt"
       FROM "Career"
@@ -88,6 +93,11 @@ export async function PUT(
   try {
     const auth = checkAdmin(req)
     if (auth instanceof NextResponse) return auth
+
+    const { isValidUUID } = await import('@/lib/validation')
+    if (!isValidUUID(params.id)) {
+      return NextResponse.json({ error: 'Invalid career ID format' }, { status: 400 })
+    }
 
     const body = await req.json()
     const parsed = careerUpdateSchema.parse(body)
@@ -223,6 +233,11 @@ export async function DELETE(
   try {
     const auth = checkAdmin(req)
     if (auth instanceof NextResponse) return auth
+
+    const { isValidUUID } = await import('@/lib/validation')
+    if (!isValidUUID(params.id)) {
+      return NextResponse.json({ error: 'Invalid career ID format' }, { status: 400 })
+    }
 
     const result = await pgPool.query(
       `DELETE FROM "Career" WHERE id = $1 RETURNING id`,

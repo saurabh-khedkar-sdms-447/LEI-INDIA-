@@ -67,6 +67,12 @@ export async function POST(req: NextRequest) {
 
 // GET /api/admin/cleanup-tokens - Get stats about expired tokens (admin only)
 export async function GET(req: NextRequest) {
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(req)
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+
   try {
     const auth = checkAdmin(req)
     if (auth instanceof NextResponse) return auth

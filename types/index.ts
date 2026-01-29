@@ -29,6 +29,11 @@ export interface Product {
   inStock: boolean
   stockQuantity?: number
   images: string[]
+  documents?: Array<{
+    url: string
+    filename: string
+    size?: number
+  }>
   datasheetUrl?: string
   relatedProducts?: string[]
   createdAt: string

@@ -38,16 +38,44 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const { searchParams } = new URL(req.url)
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10) || 20))
+    const offset = (page - 1) * limit
+
+    const countResult = await pgPool.query(
+      `
+      SELECT COUNT(*)::int AS total
+      FROM "Blog"
+      ${isAdmin ? '' : 'WHERE published = true'}
+      `,
+    )
+    const total: number = countResult.rows[0]?.total ?? 0
+
     const result = await pgPool.query(
       `
-      SELECT id, title, excerpt, content, author, category, image, published,
-             "publishedAt", "createdAt", "updatedAt"
+      SELECT id, title, slug, excerpt, content, image, published,
+             "createdAt", "updatedAt"
       FROM "Blog"
       ${isAdmin ? '' : 'WHERE published = true'}
       ORDER BY "createdAt" DESC
+      LIMIT $1
+      OFFSET $2
       `,
+      [limit, offset],
     )
-    return NextResponse.json(result.rows)
+
+    return NextResponse.json({
+      blogs: result.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNext: page < Math.ceil(total / limit),
+        hasPrev: page > 1,
+      },
+    })
   } catch (error) {
     log.error('Failed to fetch blogs', error)
     return NextResponse.json(
@@ -94,31 +122,23 @@ export const POST = requireAdmin(async (req: NextRequest) => {
       )
     }
 
-    // Set publishedAt if published is true
-    const publishedAt = parsed.published
-      ? parsed.publishedAt || new Date().toISOString()
-      : null
-
     const result = await pgPool.query(
       `
       INSERT INTO "Blog" (
-        title, slug, excerpt, content, author, category, image, published,
-        "publishedAt", "createdAt", "updatedAt"
+        title, slug, excerpt, content, image, published,
+        "createdAt", "updatedAt"
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
-      RETURNING id, title, excerpt, content, author, category, image, published,
-                "publishedAt", "createdAt", "updatedAt"
+      VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+      RETURNING id, title, slug, excerpt, content, image, published,
+                "createdAt", "updatedAt"
       `,
       [
         parsed.title,
         slug,
         sanitizedExcerpt,
         sanitizedContent,
-        parsed.author,
-        parsed.category,
         parsed.image || null,
         parsed.published,
-        publishedAt,
       ],
     )
 

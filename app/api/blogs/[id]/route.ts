@@ -30,10 +30,15 @@ export async function GET(
   }
 
   try {
+    const { isValidUUID } = await import('@/lib/validation')
+    if (!isValidUUID(params.id)) {
+      return NextResponse.json({ error: 'Invalid blog ID format' }, { status: 400 })
+    }
+
     const result = await pgPool.query(
       `
-      SELECT id, title, excerpt, content, author, category, image, published,
-             "publishedAt", "createdAt", "updatedAt"
+      SELECT id, title, slug, excerpt, content, image, published,
+             "createdAt", "updatedAt"
       FROM "Blog"
       WHERE id = $1
       LIMIT 1
@@ -89,6 +94,11 @@ export async function PUT(
     const auth = checkAdmin(req)
     if (auth instanceof NextResponse) return auth
 
+    const { isValidUUID } = await import('@/lib/validation')
+    if (!isValidUUID(params.id)) {
+      return NextResponse.json({ error: 'Invalid blog ID format' }, { status: 400 })
+    }
+
     const body = await req.json()
     const parsed = blogUpdateSchema.parse(body)
 
@@ -123,19 +133,11 @@ export async function PUT(
     }
     if (parsed.excerpt !== undefined) {
       updates.push(`excerpt = $${paramIndex++}`)
-      values.push(sanitizeRichText(parsed.excerpt))
+      values.push(parsed.excerpt ? sanitizeRichText(parsed.excerpt) : null)
     }
     if (parsed.content !== undefined) {
       updates.push(`content = $${paramIndex++}`)
-      values.push(sanitizeRichText(parsed.content))
-    }
-    if (parsed.author !== undefined) {
-      updates.push(`author = $${paramIndex++}`)
-      values.push(parsed.author)
-    }
-    if (parsed.category !== undefined) {
-      updates.push(`category = $${paramIndex++}`)
-      values.push(parsed.category)
+      values.push(parsed.content ? sanitizeRichText(parsed.content) : null)
     }
     if (parsed.image !== undefined) {
       updates.push(`image = $${paramIndex++}`)
@@ -144,23 +146,6 @@ export async function PUT(
     if (parsed.published !== undefined) {
       updates.push(`published = $${paramIndex++}`)
       values.push(parsed.published)
-      // Set publishedAt if publishing for the first time
-      if (parsed.published) {
-        const currentBlog = await pgPool.query(
-          `SELECT "publishedAt" FROM "Blog" WHERE id = $1`,
-          [params.id],
-        )
-        if (!currentBlog.rows[0]?.publishedAt) {
-          updates.push(`"publishedAt" = $${paramIndex++}`)
-          values.push(parsed.publishedAt || new Date().toISOString())
-        } else if (parsed.publishedAt) {
-          updates.push(`"publishedAt" = $${paramIndex++}`)
-          values.push(parsed.publishedAt)
-        }
-      }
-    } else if (parsed.publishedAt !== undefined) {
-      updates.push(`"publishedAt" = $${paramIndex++}`)
-      values.push(parsed.publishedAt || null)
     }
 
     if (updates.length === 0) {
@@ -178,8 +163,8 @@ export async function PUT(
       UPDATE "Blog"
       SET ${updates.join(', ')}
       WHERE id = $${paramIndex}
-      RETURNING id, title, excerpt, content, author, category, image, published,
-                "publishedAt", "createdAt", "updatedAt"
+      RETURNING id, title, slug, excerpt, content, image, published,
+                "createdAt", "updatedAt"
       `,
       values,
     )
@@ -227,6 +212,11 @@ export async function DELETE(
   try {
     const auth = checkAdmin(req)
     if (auth instanceof NextResponse) return auth
+
+    const { isValidUUID } = await import('@/lib/validation')
+    if (!isValidUUID(params.id)) {
+      return NextResponse.json({ error: 'Invalid blog ID format' }, { status: 400 })
+    }
 
     const result = await pgPool.query(
       `DELETE FROM "Blog" WHERE id = $1 RETURNING id`,

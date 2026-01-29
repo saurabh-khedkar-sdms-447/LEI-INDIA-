@@ -19,13 +19,18 @@ export async function GET(
   }
 
   try {
+    const { isValidUUID } = await import('@/lib/validation')
+    if (!isValidUUID(params.id)) {
+      return NextResponse.json({ error: 'Invalid product ID format' }, { status: 400 })
+    }
+
     const result = await pgPool.query(
       `
       SELECT
         id, sku, name, category, description, "technicalDescription", coding, pins,
         "ipRating", gender, "connectorType", material, voltage, current,
         "temperatureRange", "wireGauge", "cableLength", price, "priceType",
-        "inStock", "stockQuantity", images, "datasheetUrl",
+        "inStock", "stockQuantity", images, documents, "datasheetUrl",
         "createdAt", "updatedAt"
       FROM "Product"
       WHERE id = $1
@@ -67,6 +72,11 @@ export async function PUT(
     const auth = checkAdmin(req)
     if (auth instanceof NextResponse) return auth
 
+    const { isValidUUID } = await import('@/lib/validation')
+    if (!isValidUUID(params.id)) {
+      return NextResponse.json({ error: 'Invalid product ID format' }, { status: 400 })
+    }
+
     const body = await req.json()
     const parsed = productUpdateSchema.parse(body)
 
@@ -76,7 +86,7 @@ export async function PUT(
         id, sku, name, category, description, "technicalDescription", coding, pins,
         "ipRating", gender, "connectorType", material, voltage, current,
         "temperatureRange", "wireGauge", "cableLength", price, "priceType",
-        "inStock", "stockQuantity", images, "datasheetUrl"
+        "inStock", "stockQuantity", images, documents, "datasheetUrl"
       FROM "Product"
       WHERE id = $1
       LIMIT 1
@@ -121,14 +131,15 @@ export async function PUT(
         "inStock" = $19,
         "stockQuantity" = $20,
         images = $21,
-        "datasheetUrl" = $22,
+        documents = $22,
+        "datasheetUrl" = $23,
         "updatedAt" = NOW()
-      WHERE id = $23
+      WHERE id = $24
       RETURNING
         id, sku, name, category, description, "technicalDescription", coding, pins,
         "ipRating", gender, "connectorType", material, voltage, current,
         "temperatureRange", "wireGauge", "cableLength", price, "priceType",
-        "inStock", "stockQuantity", images, "datasheetUrl",
+        "inStock", "stockQuantity", images, documents, "datasheetUrl",
         "createdAt", "updatedAt"
       `,
       [
@@ -157,6 +168,7 @@ export async function PUT(
         parsed.inStock ?? existing.inStock,
         parsed.stockQuantity ?? existing.stockQuantity,
         parsed.images ?? existing.images,
+        parsed.documents !== undefined ? parsed.documents : (existing.documents || []),
         parsed.datasheetUrl !== undefined ? parsed.datasheetUrl || null : existing.datasheetUrl,
         params.id,
       ],
@@ -202,6 +214,11 @@ export async function DELETE(
   try {
     const auth = checkAdmin(req)
     if (auth instanceof NextResponse) return auth
+
+    const { isValidUUID } = await import('@/lib/validation')
+    if (!isValidUUID(params.id)) {
+      return NextResponse.json({ error: 'Invalid product ID format' }, { status: 400 })
+    }
 
     const existingResult = await pgPool.query(
       `
