@@ -25,12 +25,13 @@ export function HeroSlider() {
   const [isPaused, setIsPaused] = useState(false)
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchSlides = async () => {
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || ''
-        const response = await fetch(`${baseUrl}/api/hero-slides`)
+        // Use relative URL for client-side fetch in Next.js
+        const response = await fetch('/api/hero-slides')
         
         if (response.ok) {
           const data = await response.json()
@@ -38,10 +39,18 @@ export function HeroSlider() {
             ? data.filter((slide: HeroSlide) => slide.active)
             : []
           setSlides(activeSlides)
+          setError(null)
+        } else {
+          const errorData = await response.json().catch(() => ({}))
+          const errorMessage = errorData.error || `Failed to fetch hero slides: ${response.status} ${response.statusText}`
+          console.error('Failed to fetch hero slides:', response.status, response.statusText, errorData)
+          setError(errorMessage)
+          setSlides([])
         }
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to fetch hero slides'
         console.error('Failed to fetch hero slides:', error)
-        // Fallback to empty array if API fails
+        setError(errorMessage)
         setSlides([])
       } finally {
         setIsLoading(false)
@@ -80,91 +89,94 @@ export function HeroSlider() {
     setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length)
   }
 
-  // Don't render if loading or no slides
+  // Don't render if loading
   if (isLoading) {
     return (
-      <section className="relative h-[600px] md:h-[700px] overflow-hidden bg-gray-900 flex items-center justify-center">
+      <section className="relative h-[600px] md:h-[700px] overflow-hidden bg-slate-900 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
       </section>
     )
   }
 
+  // Show error message or placeholder if no slides
   if (slides.length === 0) {
-    return null
+    return (
+      <section className="relative h-[600px] md:h-[700px] overflow-hidden bg-slate-900 flex items-center justify-center">
+        <div className="text-center px-4">
+          {error ? (
+            <>
+              <p className="text-white text-lg mb-4">Unable to load hero slides</p>
+              <p className="text-gray-400 text-sm mb-6">{error}</p>
+              <p className="text-gray-500 text-xs">
+                Please check your database connection and ensure the HeroSlide table exists.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-white text-lg mb-4">No hero slides available</p>
+              <p className="text-gray-400 text-sm">
+                Add hero slides from the admin panel to display them here.
+              </p>
+            </>
+          )}
+        </div>
+      </section>
+    )
   }
 
   const currentSlideData = slides[currentSlide]
-  const imageUrl = currentSlideData.image.startsWith('http') 
-    ? currentSlideData.image 
-    : `${process.env.NEXT_PUBLIC_API_URL || ''}${currentSlideData.image}`
 
   return (
     <section
-      className="relative h-[600px] md:h-[700px] overflow-hidden bg-gray-900"
+      className="relative h-[600px] md:h-[700px] overflow-hidden bg-slate-900"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={currentSlide}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.5 }}
-          className="absolute inset-0"
-        >
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{
-              backgroundImage: `url(${imageUrl})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-            }}
-          >
-            <div className="absolute inset-0 bg-black/50" />
-          </div>
-        </motion.div>
-      </AnimatePresence>
-
-      <div className="relative z-10 container mx-auto px-4 sm:px-6 lg:px-8 h-full flex items-center">
-        <div className="max-w-3xl">
-          <motion.div
-            key={currentSlide}
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -20, opacity: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            {currentSlideData.subtitle && (
-              <p className="text-primary text-sm font-semibold mb-2 uppercase tracking-wide">
-                {currentSlideData.subtitle}
-              </p>
-            )}
-            <KineticText className="text-4xl md:text-6xl font-bold text-white mb-4">
-              {currentSlideData.title}
-            </KineticText>
-            {currentSlideData.description && (
-              <p className="text-xl text-gray-200 mb-8 max-w-2xl">
-                {currentSlideData.description}
-              </p>
-            )}
-            <div className="flex flex-col sm:flex-row gap-4">
-              {currentSlideData.ctaText && currentSlideData.ctaLink && (
-                <Button asChild size="lg" className="text-lg px-8">
-                  <Link href={currentSlideData.ctaLink}>
-                    {currentSlideData.ctaText}
-                  </Link>
-                </Button>
+      <div className="relative z-10 container mx-auto px-4 sm:px-6 lg:px-8 h-full flex items-center justify-center">
+        <div className="max-w-3xl text-center">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentSlide}
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -20, opacity: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              {currentSlideData.subtitle && (
+                <p className="text-primary text-sm font-semibold mb-2 uppercase tracking-wide">
+                  {currentSlideData.subtitle}
+                </p>
               )}
-              {currentSlideData.ctaLink !== '/rfq' && (
-                <Button asChild variant="outline" size="lg" className="text-lg px-8 bg-white/10 text-white border-white/20 hover:bg-white/20">
-                  <Link href="/rfq">
-                    Request a Quote
-                  </Link>
-                </Button>
+              <KineticText className="text-4xl md:text-6xl font-bold text-white mb-4">
+                {currentSlideData.title}
+              </KineticText>
+              {currentSlideData.description && (
+                <p className="text-lg md:text-xl text-white mb-8 max-w-2xl mx-auto">
+                  {currentSlideData.description}
+                </p>
               )}
-            </div>
-          </motion.div>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                {currentSlideData.ctaText && currentSlideData.ctaLink && (
+                  <Button asChild size="lg" className="text-lg px-8">
+                    <Link href={currentSlideData.ctaLink}>
+                      {currentSlideData.ctaText}
+                    </Link>
+                  </Button>
+                )}
+                {currentSlideData.ctaLink !== '/rfq' && (
+                  <Button 
+                    asChild 
+                    size="lg" 
+                    className="text-lg px-8 bg-gray-800 text-white border border-gray-600 hover:bg-gray-700"
+                  >
+                    <Link href="/rfq">
+                      Request a Quote
+                    </Link>
+                  </Button>
+                )}
+              </div>
+            </motion.div>
+          </AnimatePresence>
         </div>
       </div>
 
@@ -173,48 +185,36 @@ export function HeroSlider() {
         <>
           <button
             onClick={prevSlide}
-            className="absolute left-4 top-1/2 -translate-y-1/2 z-20 p-2 rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors"
+            className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-gray-700 hover:bg-gray-600 text-white transition-colors flex items-center justify-center"
             aria-label="Previous slide"
           >
-            <ChevronLeft className="h-6 w-6" />
+            <ChevronLeft className="h-5 w-5" />
           </button>
           <button
             onClick={nextSlide}
-            className="absolute right-4 top-1/2 -translate-y-1/2 z-20 p-2 rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors"
+            className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-gray-700 hover:bg-gray-600 text-white transition-colors flex items-center justify-center"
             aria-label="Next slide"
           >
-            <ChevronRight className="h-6 w-6" />
+            <ChevronRight className="h-5 w-5" />
           </button>
         </>
       )}
 
-      {/* Slide Indicators & Pause */}
+      {/* Slide Indicators */}
       {slides.length > 1 && (
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 flex items-center gap-4">
-          <div className="flex gap-2">
-            {slides.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => goToSlide(index)}
-                className={`h-2 rounded-full transition-all ${
-                  index === currentSlide
-                    ? 'w-8 bg-primary'
-                    : 'w-2 bg-white/50 hover:bg-white/70'
-                }`}
-                aria-label={`Go to slide ${index + 1}`}
-              />
-            ))}
-          </div>
-          {!prefersReducedMotion && (
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
+          {slides.map((_, index) => (
             <button
-              type="button"
-              onClick={() => setIsPaused((p) => !p)}
-              className="px-3 py-1 rounded-full bg-white/20 text-xs text-white hover:bg-white/30"
-              aria-pressed={isPaused}
-            >
-              {isPaused ? 'Play' : 'Pause'}
-            </button>
-          )}
+              key={index}
+              onClick={() => goToSlide(index)}
+              className={`h-2 rounded-full transition-all ${
+                index === currentSlide
+                  ? 'w-8 bg-primary'
+                  : 'w-2 bg-gray-500 hover:bg-gray-400'
+              }`}
+              aria-label={`Go to slide ${index + 1}`}
+            />
+          ))}
         </div>
       )}
     </section>

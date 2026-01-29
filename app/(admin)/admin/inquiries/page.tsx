@@ -89,8 +89,8 @@ export default function AdminInquiriesPage() {
       if (!response.ok) throw new Error('Failed to fetch inquiries')
 
       const data = await response.json()
-      setInquiries(data)
-      setFilteredInquiries(data)
+      setInquiries(data.inquiries || [])
+      setFilteredInquiries(data.inquiries || [])
     } catch {
       // Leave inquiries empty on failure; UI already reflects lack of data.
     } finally {

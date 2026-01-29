@@ -1,30 +1,58 @@
 #!/usr/bin/env node
 
-/**
- * Development server script that finds an available port and starts Next.js
- */
-
 import { spawn } from 'child_process';
-import findAvailablePort from './find-port.mjs';
+import { readFileSync, unlinkSync } from 'fs';
+import { join } from 'path';
 
 const startPort = parseInt(process.env.PORT) || 3000;
 
+async function runInitDatabase() {
+  return new Promise((resolve, reject) => {
+    const proc = spawn('npx', ['--yes', 'tsx', join(process.cwd(), 'src', 'initDatabase.ts')], {
+      stdio: 'inherit',
+      shell: true,
+      env: {
+        ...process.env,
+        PORT: startPort.toString(),
+      },
+    });
+
+    proc.on('error', reject);
+    proc.on('exit', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`Database initialization failed with exit code ${code}`));
+      }
+    });
+  });
+}
+
 try {
-  console.log(`🔍 Checking for available port starting from ${startPort}...`);
+  console.log('🔧 Initializing database...\n');
   
-  const port = await findAvailablePort(startPort);
+  try {
+    await runInitDatabase();
+    console.log('\n✅ Database initialization completed\n');
+  } catch (error) {
+    console.error('\n❌ Database initialization failed:', error.message);
+    process.exit(1);
+  }
+
+  const portFile = join(process.cwd(), '.port');
+  const portContent = readFileSync(portFile, 'utf-8');
+  const resolvedPort = parseInt(portContent.trim());
+  unlinkSync(portFile);
   
-  console.log(`✅ Found available port: ${port}`);
-  console.log(`🚀 Starting Next.js dev server on port ${port}...`);
-  console.log(`📍 Your app will be available at http://localhost:${port}\n`);
+  console.log(`🚀 Starting Next.js dev server on port ${resolvedPort}...`);
+  console.log(`📍 Your app will be available at http://localhost:${resolvedPort}\n`);
   
-  // Start Next.js dev server with the found port
-  const nextDev = spawn('next', ['dev', '-p', port.toString()], {
+  const nextDev = spawn('next', ['dev', '-p', resolvedPort.toString()], {
     stdio: 'inherit',
     shell: true,
     env: {
       ...process.env,
-      PORT: port.toString(),
+      PORT: resolvedPort.toString(),
     },
   });
   
@@ -37,7 +65,6 @@ try {
     process.exit(code || 0);
   });
   
-  // Handle graceful shutdown
   process.on('SIGINT', () => {
     console.log('\n🛑 Shutting down...');
     nextDev.kill('SIGINT');

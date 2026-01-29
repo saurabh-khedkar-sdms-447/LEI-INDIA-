@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -17,6 +18,7 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product }: ProductCardProps) {
+  const [imageError, setImageError] = useState(false)
   const addItem = useRFQStore((state) => state.addItem)
   const { items, toggleItem } = useComparisonStore()
   const isSelectedForCompare = items.some((i) => i.id === product.id)
@@ -39,14 +41,34 @@ export function ProductCard({ product }: ProductCardProps) {
       transition={{ duration: 0.3 }}
     >
       <Card className="h-full flex flex-col hover:shadow-lg transition-shadow">
-        <div className="relative h-48 w-full bg-gray-100 overflow-hidden">
-          <Image
-            src={product.images[0] || '/images/placeholder.jpg'}
-            alt={product.name}
-            fill
-            className="object-cover"
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-          />
+        <div className="relative h-48 w-full bg-gray-100 overflow-hidden flex items-center justify-center">
+          {product.images && product.images.length > 0 && product.images[0] && !imageError ? (
+            <Image
+              src={product.images[0]}
+              alt={product.name}
+              fill
+              className="object-cover"
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              onError={() => setImageError(true)}
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full w-full text-gray-400">
+              <svg
+                className="w-16 h-16"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                />
+              </svg>
+            </div>
+          )}
           {product.inStock && (
             <Badge className="absolute top-2 right-2 bg-green-500">
               <CheckCircle2 className="h-3 w-3 mr-1" />
@@ -82,10 +104,18 @@ export function ProductCard({ product }: ProductCardProps) {
             {product.description}
           </p>
           <div className="flex flex-wrap gap-2 mb-4">
-            <Badge variant="outline">{product.connectorType}</Badge>
-            <Badge variant="outline">{product.coding}-Code</Badge>
-            <Badge variant="outline">{product.pins} Pin</Badge>
-            <Badge variant="outline">{product.ipRating}</Badge>
+            {product.connectorType && (
+              <Badge variant="outline">{product.connectorType}</Badge>
+            )}
+            {product.coding && (
+              <Badge variant="outline">{product.coding}-Code</Badge>
+            )}
+            {product.pins && (
+              <Badge variant="outline">{product.pins} Pin</Badge>
+            )}
+            {product.ipRating && (
+              <Badge variant="outline">{product.ipRating}</Badge>
+            )}
           </div>
         </CardContent>
         <CardFooter className="flex flex-col sm:flex-row gap-2">

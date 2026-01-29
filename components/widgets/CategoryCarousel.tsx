@@ -14,6 +14,15 @@ interface CategoryCarouselProps {
 
 export function CategoryCarousel({ categories }: CategoryCarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  
+  // Safety check
+  if (!categories || categories.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-gray-600">No categories available.</p>
+      </div>
+    )
+  }
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollRef.current) {

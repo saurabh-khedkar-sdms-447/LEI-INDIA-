@@ -10,13 +10,6 @@
     "start:fixed": "next start",
     "start:prod": "NODE_ENV=production node scripts/start-with-port.mjs",
     "lint": "next lint",
-    "db:setup": "node scripts/setup-db.mjs",
-    "db:migrate:career": "node scripts/migrate-career-table.mjs",
-    "db:seed": "node scripts/seed-data.mjs",
-    "db:test": "node scripts/test-db.mjs",
-    "db:reset": "node scripts/setup-db.mjs && node scripts/migrate-career-table.mjs && node scripts/seed-data.mjs",
-    "db:init": "node scripts/setup-and-seed.mjs",
-    "seed:admin": "node scripts/seed-admin.mjs",
     "check:console-logs": "node scripts/replace-console-logs.mjs"
   },
   "workspaces": [],

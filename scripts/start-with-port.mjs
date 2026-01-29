@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 
-/**
- * Production server script that finds an available port and starts Next.js
- */
-
 import { spawn } from 'child_process';
-import { access } from 'fs/promises';
+import { access, readFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
-import findAvailablePort from './find-port.mjs';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const startPort = parseInt(process.env.PORT) || 3000;
 
@@ -45,8 +45,39 @@ function runCommand(command, args, options = {}) {
   });
 }
 
+async function runInitDatabase() {
+  return new Promise((resolve, reject) => {
+    const proc = spawn('npx', ['--yes', 'tsx', join(process.cwd(), 'src', 'initDatabase.ts')], {
+      stdio: 'inherit',
+      shell: true,
+      env: {
+        ...process.env,
+        PORT: startPort.toString(),
+      },
+    });
+
+    proc.on('error', reject);
+    proc.on('exit', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`Database initialization failed with exit code ${code}`));
+      }
+    });
+  });
+}
+
 try {
-  // Check if build exists
+  console.log('🔧 Initializing database...\n');
+  
+  try {
+    await runInitDatabase();
+    console.log('\n✅ Database initialization completed\n');
+  } catch (error) {
+    console.error('\n❌ Database initialization failed:', error.message);
+    process.exit(1);
+  }
+
   const hasBuild = await buildExists();
   
   if (!hasBuild) {
@@ -60,21 +91,20 @@ try {
     }
   }
 
-  console.log(`🔍 Checking for available port starting from ${startPort}...`);
+  const portFile = join(process.cwd(), '.port');
+  const portContent = readFileSync(portFile, 'utf-8');
+  const resolvedPort = parseInt(portContent.trim());
+  unlinkSync(portFile);
   
-  const port = await findAvailablePort(startPort);
+  console.log(`🚀 Starting Next.js production server on port ${resolvedPort}...`);
+  console.log(`📍 Your app will be available at http://localhost:${resolvedPort}\n`);
   
-  console.log(`✅ Found available port: ${port}`);
-  console.log(`🚀 Starting Next.js production server on port ${port}...`);
-  console.log(`📍 Your app will be available at http://localhost:${port}\n`);
-  
-  // Start Next.js production server with the found port
-  const nextStart = spawn('next', ['start', '-p', port.toString()], {
+  const nextStart = spawn('next', ['start', '-p', resolvedPort.toString()], {
     stdio: 'inherit',
     shell: true,
     env: {
       ...process.env,
-      PORT: port.toString(),
+      PORT: resolvedPort.toString(),
     },
   });
   
@@ -87,7 +117,6 @@ try {
     process.exit(code || 0);
   });
   
-  // Handle graceful shutdown
   process.on('SIGINT', () => {
     console.log('\n🛑 Shutting down...');
     nextStart.kill('SIGINT');

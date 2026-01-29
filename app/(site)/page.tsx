@@ -3,7 +3,7 @@ import { Header } from "@/components/shared/Header"
 import { Footer } from "@/components/shared/Footer"
 import { HeroSlider } from "@/components/widgets/HeroSlider"
 import { BentoResources } from "@/components/widgets/BentoResources"
-import { CategoryCarousel } from "@/components/widgets/CategoryCarousel"
+import { CategoryCard } from "@/components/features/CategoryCard"
 import { ProductCard } from "@/components/features/ProductCard"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Category, Product } from "@/types"
@@ -17,18 +17,19 @@ export const metadata: Metadata = {
   description: "LEI Indias - Professional B2B supplier of M12, M8, and RJ45 industrial connectors, cables, and PROFINET products.",
 }
 
+// Force dynamic rendering to ensure fresh data on each request
+export const dynamic = 'force-dynamic'
+
 async function getProducts(): Promise<Product[]> {
   try {
     // For server-side rendering, we need an absolute URL
-    // In Next.js, we can use the request URL or construct it properly
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 
       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
     const url = new URL('/api/products', baseUrl)
     url.searchParams.set('limit', '6')
+    
     const response = await fetch(url.toString(), {
-      // Use force-cache for static generation, no-store would cause dynamic rendering
-      cache: 'force-cache',
-      // Add timeout for builds
+      cache: 'no-store', // Always fetch fresh data
       signal: AbortSignal.timeout(5000), // 5 second timeout
     })
     if (!response.ok) {
@@ -37,7 +38,7 @@ async function getProducts(): Promise<Product[]> {
     const data = await response.json()
     return Array.isArray(data) ? data : (data.products || [])
   } catch (error) {
-    log.warn('Failed to fetch products for homepage', {
+    log.error('Failed to fetch products for homepage', {
       error: error instanceof Error ? error.message : String(error),
     })
     // Return empty array to prevent build failures
@@ -47,22 +48,34 @@ async function getProducts(): Promise<Product[]> {
 
 async function getCategories(): Promise<Category[]> {
   try {
+    // Construct full URL for server component fetch
+    // In Next.js server components, we need to use absolute URLs or localhost
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
-    const url = new URL('/api/categories', baseUrl)
-    url.searchParams.set('limit', '50')
-    const response = await fetch(url.toString(), {
-      cache: 'force-cache',
-      signal: AbortSignal.timeout(5000), // 5 second timeout
+                   (typeof window === 'undefined' 
+                     ? `http://localhost:${process.env.PORT || 3000}`
+                     : '')
+    
+    const apiUrl = `${baseUrl}/api/categories?limit=50`
+    
+    log.info(`Fetching categories from: ${apiUrl}`)
+    
+    const response = await fetch(apiUrl, {
+      cache: 'no-store', // Always fetch fresh data since we're using dynamic rendering
+      signal: AbortSignal.timeout(10000), // 10 second timeout
     })
+    
     if (!response.ok) {
       throw new Error(`API responded with status: ${response.status}`)
     }
+    
     const data = await response.json()
-    return Array.isArray(data.categories) ? data.categories : []
+    const categories = Array.isArray(data.categories) ? data.categories : []
+    log.info(`Fetched ${categories.length} categories for homepage`)
+    return categories
   } catch (error) {
-    log.warn('Failed to fetch categories for homepage', {
+    log.error('Failed to fetch categories for homepage', {
       error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
     })
     // Return empty array to prevent build failures
     return []
@@ -72,6 +85,16 @@ async function getCategories(): Promise<Category[]> {
 export default async function HomePage() {
   const products = await getProducts()
   const categories = await getCategories()
+  
+  // Debug: Log categories to see what we're getting
+  if (categories.length === 0) {
+    log.warn('No categories found in database for homepage')
+  } else {
+    log.info(`Homepage rendering with ${categories.length} categories`, {
+      categoryNames: categories.map(c => c.name),
+    })
+  }
+  
   const featuredProducts = products.slice(0, 6)
   const whyChooseUs = [
     {
@@ -103,22 +126,30 @@ export default async function HomePage() {
         {/* Hero Section */}
         <HeroSlider />
 
-        {/* Product Categories Carousel */}
-        {categories.length > 0 && (
-          <section className="py-16 bg-white">
-            <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="text-center mb-12">
-                <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-                  Product Categories
-                </h2>
-                <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                  Explore our comprehensive range of industrial connectors and cables
-                </p>
-              </div>
-              <CategoryCarousel categories={categories} />
+        {/* Product Categories */}
+        <section className="py-16 bg-white">
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+                Product Categories
+              </h2>
+              <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                Explore our comprehensive range of industrial connectors and cables
+              </p>
             </div>
-          </section>
-        )}
+            {categories.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {categories.map((category) => (
+                  <CategoryCard key={category.id} category={category} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-lg text-gray-600">No categories available at the moment.</p>
+              </div>
+            )}
+          </div>
+        </section>
 
         {/* Featured Products */}
         <section className="py-16 bg-gray-50">

@@ -27,9 +27,10 @@ export async function POST(req: NextRequest) {
       username: string
       password: string
       role: string
+      isActive: boolean
     }>(
       `
-      SELECT id, username, password, role
+      SELECT id, username, password, role, "isActive"
       FROM "Admin"
       WHERE username = $1
       LIMIT 1
@@ -40,11 +41,18 @@ export async function POST(req: NextRequest) {
     const admin = result.rows[0]
 
     if (!admin) {
+      log.warn(`Admin login attempt with non-existent username: ${username}`)
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
+    }
+
+    if (!admin.isActive) {
+      log.warn(`Admin login attempt with inactive account: ${username}`)
+      return NextResponse.json({ error: 'Account is inactive' }, { status: 403 })
     }
 
     const valid = await bcrypt.compare(password, admin.password)
     if (!valid) {
+      log.warn(`Admin login attempt with invalid password for username: ${username}`)
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
     }
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { pgPool } from '@/lib/pg'
 import { heroSlideUpdateSchema } from '@/lib/hero-slide-validation'
-import { requireAdmin } from '@/lib/auth-middleware'
+import { checkAdmin } from '@/lib/auth-middleware'
 import { rateLimit } from '@/lib/rate-limit'
 import { csrfProtection } from '@/lib/csrf'
 import { log } from '@/lib/logger'
@@ -51,10 +51,10 @@ export async function GET(
 }
 
 // PUT /api/hero-slides/[id] - update hero slide (admin-only)
-export const PUT = requireAdmin(async (
+export async function PUT(
   req: NextRequest,
   { params }: { params: { id: string } }
-) => {
+) {
   // CSRF protection
   const csrfResponse = csrfProtection(req)
   if (csrfResponse) {
@@ -66,6 +66,10 @@ export const PUT = requireAdmin(async (
   if (rateLimitResponse) {
     return rateLimitResponse
   }
+
+  // Admin authentication
+  const auth = checkAdmin(req)
+  if (auth instanceof NextResponse) return auth
 
   try {
     const { isValidUUID } = await import('@/lib/validation')
@@ -169,13 +173,13 @@ export const PUT = requireAdmin(async (
       { status: 500 },
     )
   }
-})
+}
 
 // DELETE /api/hero-slides/[id] - delete hero slide (admin-only)
-export const DELETE = requireAdmin(async (
+export async function DELETE(
   req: NextRequest,
   { params }: { params: { id: string } }
-) => {
+) {
   // CSRF protection
   const csrfResponse = csrfProtection(req)
   if (csrfResponse) {
@@ -187,6 +191,10 @@ export const DELETE = requireAdmin(async (
   if (rateLimitResponse) {
     return rateLimitResponse
   }
+
+  // Admin authentication
+  const auth = checkAdmin(req)
+  if (auth instanceof NextResponse) return auth
 
   try {
     const { isValidUUID } = await import('@/lib/validation')
@@ -214,4 +222,4 @@ export const DELETE = requireAdmin(async (
       { status: 500 },
     )
   }
-})
+}

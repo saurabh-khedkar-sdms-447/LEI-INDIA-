@@ -37,10 +37,16 @@ export async function GET(req: NextRequest) {
       `,
     )
     return NextResponse.json(result.rows)
-  } catch (error) {
+  } catch (error: any) {
     log.error('Failed to fetch hero slides', error)
+    const errorMessage = error?.message || 'Unknown error'
+    const errorCode = error?.code || 'UNKNOWN'
     return NextResponse.json(
-      { error: 'Failed to fetch hero slides' },
+      { 
+        error: 'Failed to fetch hero slides',
+        details: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
+        code: process.env.NODE_ENV === 'development' ? errorCode : undefined,
+      },
       { status: 500 },
     )
   }
