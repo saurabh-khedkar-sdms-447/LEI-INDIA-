@@ -133,8 +133,8 @@ export function RFQForm({ items, onSuccess }: RFQFormProps) {
   if (submitted) {
     return (
       <div className="text-center py-8">
-        <div className="text-green-600 mb-2">✓ RFQ Submitted Successfully!</div>
-        <p className="text-sm text-gray-600">We'll contact you shortly with a quote.</p>
+      <div className="text-green-600 mb-2">✓ RFQ Submitted Successfully!</div>
+        <p className="text-sm text-gray-600">We&apos;ll contact you shortly with a quote.</p>
       </div>
     )
   }

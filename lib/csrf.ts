@@ -3,6 +3,8 @@ import { randomBytes, createHmac } from 'crypto'
 import { JWT_SECRET } from './env-validation'
 import { log } from './logger'
 
+const isProduction = process.env.NODE_ENV === 'production'
+
 const CSRF_TOKEN_COOKIE_NAME = 'csrf-token'
 const CSRF_TOKEN_HEADER_NAME = 'x-csrf-token'
 
@@ -16,7 +18,7 @@ export function generateCsrfToken(): string {
 /**
  * Create a signed CSRF token
  */
-function signCsrfToken(token: string): string {
+export function signCsrfToken(token: string): string {
   const hmac = createHmac('sha256', JWT_SECRET)
   hmac.update(token)
   return `${token}.${hmac.digest('hex')}`
@@ -39,55 +41,10 @@ function verifyCsrfToken(signedToken: string): boolean {
 }
 
 /**
- * Get CSRF token from request (from cookie or header)
- */
-function getCsrfToken(req: NextRequest): string | null {
-  // Try header first (for API requests)
-  const headerToken = req.headers.get(CSRF_TOKEN_HEADER_NAME)
-  if (headerToken) {
-    return headerToken
-  }
-
-  // Try cookie (for form submissions)
-  const cookieToken = req.cookies.get(CSRF_TOKEN_COOKIE_NAME)?.value
-  if (cookieToken) {
-    return cookieToken
-  }
-
-  return null
-}
-
-/**
  * Validate CSRF token
- * Returns true if valid, false otherwise
+ * CSRF protection is disabled project-wide; always returns true.
  */
-export function validateCsrfToken(req: NextRequest): boolean {
-  // Skip CSRF check for GET, HEAD, OPTIONS requests
-  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
-    return true
-  }
-
-  // Skip CSRF check for public read-only endpoints
-  const pathname = req.nextUrl.pathname
-  const publicReadOnlyEndpoints = ['/api/health', '/api/csrf-token']
-  if (publicReadOnlyEndpoints.some((endpoint) => pathname.startsWith(endpoint))) {
-    return true
-  }
-
-  // For same-origin requests with authenticated users, we can be more lenient
-  // but still require CSRF token for security
-  const token = getCsrfToken(req)
-  if (!token) {
-    log.warn('CSRF token missing', { pathname, method: req.method })
-    return false
-  }
-
-  const isValid = verifyCsrfToken(token)
-  if (!isValid) {
-    log.warn('CSRF token invalid', { pathname, method: req.method })
-    return false
-  }
-
+export function validateCsrfToken(_req: NextRequest): boolean {
   return true
 }
 

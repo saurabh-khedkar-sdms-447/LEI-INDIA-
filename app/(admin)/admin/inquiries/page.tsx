@@ -91,8 +91,8 @@ export default function AdminInquiriesPage() {
       const data = await response.json()
       setInquiries(data)
       setFilteredInquiries(data)
-    } catch (error) {
-      console.error('Failed to fetch inquiries:', error)
+    } catch {
+      // Leave inquiries empty on failure; UI already reflects lack of data.
     } finally {
       setIsLoading(false)
     }
@@ -119,8 +119,7 @@ export default function AdminInquiriesPage() {
       if (selectedInquiry?.id === inquiryId) {
         setSelectedInquiry({ ...selectedInquiry, read })
       }
-    } catch (error) {
-      console.error('Failed to update inquiry:', error)
+    } catch {
       alert('Failed to update inquiry')
     }
   }
@@ -146,8 +145,7 @@ export default function AdminInquiriesPage() {
       if (selectedInquiry?.id === inquiryId) {
         setSelectedInquiry({ ...selectedInquiry, responded })
       }
-    } catch (error) {
-      console.error('Failed to update inquiry:', error)
+    } catch {
       alert('Failed to update inquiry')
     }
   }
@@ -169,8 +167,7 @@ export default function AdminInquiriesPage() {
       if (selectedInquiry?.id === inquiryId) {
         setIsDialogOpen(false)
       }
-    } catch (error) {
-      console.error('Failed to delete inquiry:', error)
+    } catch {
       alert('Failed to delete inquiry')
     }
   }

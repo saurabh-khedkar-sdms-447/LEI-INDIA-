@@ -14,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import Image from 'next/image'
 import {
   Dialog,
   DialogContent,
@@ -120,7 +121,6 @@ export default function AdminProductsPage() {
       // Handle both paginated and non-paginated responses
       setProducts(Array.isArray(data) ? data : (data.products || []))
     } catch (error) {
-      console.error('Failed to fetch products:', error)
       const errorMessage = error instanceof Error ? error.message : 'Failed to load products. Please refresh the page or try again later.'
       setError(errorMessage)
     } finally {
@@ -169,7 +169,6 @@ export default function AdminProductsPage() {
       setProductImages(newImages)
       setValue('images', newImages)
     } catch (error) {
-      console.error('Image upload failed:', error)
       const errorMessage = error instanceof Error ? error.message : 'Failed to upload image. Please try again.'
       alert(errorMessage)
     } finally {
@@ -254,7 +253,6 @@ export default function AdminProductsPage() {
       reset()
       setProductImages([])
     } catch (error) {
-      console.error('Failed to save product:', error)
       const errorMessage = error instanceof Error ? error.message : 'Failed to save product. Please try again.'
       alert(errorMessage)
     }
@@ -291,7 +289,6 @@ export default function AdminProductsPage() {
       setProductToDelete(null)
       await fetchProducts()
     } catch (error) {
-      console.error('Failed to delete product:', error)
       const errorMessage = error instanceof Error ? error.message : 'Failed to delete product. Please try again.'
       setError(errorMessage)
     } finally {
@@ -617,11 +614,12 @@ export default function AdminProductsPage() {
                 </div>
                 <div className="grid grid-cols-4 gap-2">
                   {productImages.map((url, index) => (
-                    <div key={index} className="relative">
-                      <img
+                    <div key={index} className="relative h-24">
+                      <Image
                         src={`${process.env.NEXT_PUBLIC_API_URL || ''}${url}`}
                         alt={`Product ${index + 1}`}
-                        className="w-full h-24 object-cover rounded border"
+                        fill
+                        className="object-cover rounded border"
                       />
                       <Button
                         type="button"

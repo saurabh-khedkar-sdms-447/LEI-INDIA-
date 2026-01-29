@@ -142,19 +142,3 @@ export async function rateLimit(
 
   return null
 }
-
-/**
- * Rate limit wrapper for API route handlers
- */
-export function withRateLimit(
-  handler: (req: NextRequest) => Promise<NextResponse>,
-  config?: RateLimitConfig,
-) {
-  return async (req: NextRequest): Promise<NextResponse> => {
-    const rateLimitResponse = await rateLimit(req, config)
-    if (rateLimitResponse) {
-      return rateLimitResponse
-    }
-    return handler(req)
-  }
-}

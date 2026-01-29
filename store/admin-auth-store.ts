@@ -30,13 +30,8 @@ export const useAdminAuth = create<AdminAuthState>()(
           // Call the logout API endpoint to clear the httpOnly cookie
           const { apiClient } = await import('@/lib/api-client')
           await apiClient.post('/api/admin/auth/logout')
-        } catch (error) {
-          // Even if API call fails, clear local state.
-          // Only log in non-production to avoid noisy consoles for end users.
-          if (process.env.NODE_ENV !== 'production') {
-            // eslint-disable-next-line no-console
-            console.error('Logout API call failed:', error)
-          }
+        } catch {
+          // Even if API call fails, clear local state without logging to the console.
         } finally {
           // Always clear local state
           set({ user: null, isAuthenticated: false })

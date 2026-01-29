@@ -4,7 +4,6 @@ import React, { Component, ErrorInfo, ReactNode } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { AlertTriangle } from 'lucide-react'
-import * as Sentry from '@sentry/nextjs'
 
 interface Props {
   children: ReactNode
@@ -27,17 +26,10 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Send error to Sentry
-    Sentry.captureException(error, {
-      contexts: {
-        react: {
-          componentStack: errorInfo.componentStack,
-        },
-      },
-      tags: {
-        errorBoundary: true,
-      },
-    })
+    // Log error details to the console so we have basic visibility in production.
+    // Keeping this simple avoids external error tracking dependencies.
+    // eslint-disable-next-line no-console
+    console.error('ErrorBoundary caught an error', error, errorInfo)
   }
 
   handleReset = () => {

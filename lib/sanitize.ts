@@ -84,11 +84,15 @@ export function sanitizePlainText(text: string): string {
  * Use this for blog posts, product descriptions, etc.
  */
 export function sanitizeRichText(html: string): string {
+  const baseAllowedTags = Array.isArray(sanitizeOptions.allowedTags)
+    ? sanitizeOptions.allowedTags
+    : []
+
   return sanitizeHtmlContent(html, {
     ...sanitizeOptions,
     // Allow more formatting options for rich text
     allowedTags: [
-      ...sanitizeOptions.allowedTags!,
+      ...baseAllowedTags,
       'sub', 'sup', 'mark', 'del', 'ins',
     ],
   })

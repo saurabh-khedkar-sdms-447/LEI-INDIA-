@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Calendar, User, ArrowRight } from "lucide-react"
+import Image from "next/image"
 
 interface BlogPost {
   _id: string
@@ -31,9 +32,9 @@ export default function BlogPage() {
     try {
       const response = await fetch('/api/blogs')
       const data = await response.json()
-      setBlogPosts(data)
-    } catch (error) {
-      console.error('Failed to fetch blogs:', error)
+      setBlogPosts(Array.isArray(data) ? data : [])
+    } catch {
+      setBlogPosts([])
     } finally {
       setIsLoading(false)
     }
@@ -78,10 +79,11 @@ export default function BlogPage() {
                 <Card key={post._id} className="flex flex-col hover:shadow-lg transition-shadow">
                   <div className="relative h-48 bg-gradient-to-br from-primary/20 to-primary/5 overflow-hidden">
                     {post.image ? (
-                      <img
+                      <Image
                         src={post.image}
                         alt={post.title}
-                        className="w-full h-full object-cover"
+                        fill
+                        className="object-cover"
                       />
                     ) : (
                       <div className="absolute inset-0 flex items-center justify-center">

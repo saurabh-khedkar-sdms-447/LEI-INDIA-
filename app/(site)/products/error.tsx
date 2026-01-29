@@ -12,10 +12,8 @@ export default function Error({
   reset: () => void
 }) {
   useEffect(() => {
-    // Log error for debugging in development
-    if (process.env.NODE_ENV === 'development') {
-      console.error('Products page error:', error)
-    }
+    // In production, errors are captured by the global error handling and logging stack.
+    // No-op here to avoid leaking details to the client console.
   }, [error])
 
   return (

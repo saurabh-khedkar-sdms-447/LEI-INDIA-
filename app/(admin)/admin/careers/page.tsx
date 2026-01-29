@@ -104,14 +104,8 @@ export default function AdminCareersPage() {
       }
       const data = await response.json()
       // Ensure data is an array
-      if (Array.isArray(data)) {
-        setCareers(data)
-      } else {
-        console.error('Invalid response format:', data)
-        setCareers([])
-      }
-    } catch (error) {
-      console.error('Failed to fetch careers:', error)
+      setCareers(Array.isArray(data) ? data : [])
+    } catch {
       setCareers([])
     } finally {
       setIsLoading(false)
@@ -166,8 +160,7 @@ export default function AdminCareersPage() {
       setIsDialogOpen(false)
       fetchCareers()
       reset()
-    } catch (error) {
-      console.error('Failed to save career:', error)
+    } catch {
       alert('Failed to save career')
     }
   }
@@ -186,8 +179,7 @@ export default function AdminCareersPage() {
       if (!response.ok) throw new Error('Failed to delete career')
 
       fetchCareers()
-    } catch (error) {
-      console.error('Failed to delete career:', error)
+    } catch {
       alert('Failed to delete career')
     }
   }

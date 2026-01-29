@@ -39,8 +39,7 @@ export default function RFQPage() {
         const data = await response.json()
         const products = Array.isArray(data) ? data : (data.products as Product[] | undefined) || []
         setProducts(products)
-      } catch (error) {
-        console.error('Failed to fetch products:', error)
+      } catch {
         setProducts([])
       }
     }

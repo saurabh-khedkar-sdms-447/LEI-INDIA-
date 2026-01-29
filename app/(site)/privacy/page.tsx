@@ -30,7 +30,7 @@ export default function PrivacyPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <p className="text-gray-600">
-                    LEI Indias ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our website and use our services.
+                    LEI Indias (&quot;we,&quot; &quot;our,&quot; or &quot;us&quot;) is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our website and use our services.
                   </p>
                   <p className="text-gray-600">
                     By using our website, you consent to the data practices described in this policy. If you do not agree with the data practices described, please do not use our website.
@@ -139,7 +139,7 @@ export default function PrivacyPage() {
                     <li>Withdraw consent at any time</li>
                   </ul>
                   <p className="text-gray-600 mt-4">
-                    To exercise these rights, please contact us using the information provided in the "Contact Us" section below.
+                    To exercise these rights, please contact us using the information provided in the &quot;Contact Us&quot; section below.
                   </p>
                 </CardContent>
               </Card>
@@ -168,7 +168,7 @@ export default function PrivacyPage() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>9. Children's Privacy</CardTitle>
+                  <CardTitle>9. Children&apos;s Privacy</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-gray-600">
@@ -183,7 +183,7 @@ export default function PrivacyPage() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-gray-600">
-                    We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page and updating the "Last updated" date. You are advised to review this Privacy Policy periodically for any changes.
+                    We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page and updating the &quot;Last updated&quot; date. You are advised to review this Privacy Policy periodically for any changes.
                   </p>
                 </CardContent>
               </Card>

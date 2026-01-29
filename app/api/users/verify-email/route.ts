@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { pgPool } from '@/lib/pg'
 import crypto from 'crypto'
 import { log } from '@/lib/logger'
-import { sendEmail, generateVerificationEmail } from '@/lib/email'
 import { csrfProtection } from '@/lib/csrf'
 import { rateLimit } from '@/lib/rate-limit'
 import { reportApiError } from '@/lib/error-reporting'
@@ -168,32 +167,8 @@ export async function POST(req: NextRequest) {
       [verificationToken, expiresAt, user.id],
     )
 
-    // Send verification email
-    const verificationLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/verify-email?token=${verificationToken}`
-    const emailContent = generateVerificationEmail(verificationLink, user.name)
-    
-    try {
-      await sendEmail({
-        to: user.email,
-        subject: emailContent.subject,
-        html: emailContent.html,
-        text: emailContent.text,
-      })
-      log.info('Verification email resent', { 
-        userId: user.id,
-        email: user.email 
-      })
-    } catch (error: any) {
-      log.error('Failed to resend verification email', { 
-        userId: user.id,
-        email: user.email,
-        error: error.message 
-      })
-      // Still return success to prevent email enumeration
-    }
-
     return NextResponse.json({
-      message: 'If an account exists with this email, a verification link has been sent.',
+      message: 'If an account exists with this email, a verification token has been created.',
     })
   } catch (error) {
     reportApiError(error, {

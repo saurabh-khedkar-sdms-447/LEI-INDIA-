@@ -43,3 +43,6 @@ next-env.d.ts
 
 # Data files (optional - uncomment if you don't want to track JSON data)
 # backend/data/*.json
+
+# Next.js
+.next/

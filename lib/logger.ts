@@ -1,39 +1,36 @@
-import pino from 'pino'
+type LogContext = Record<string, unknown> | undefined
 
-// Create logger instance with appropriate configuration
-const logger = pino({
-  level: process.env.LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'info' : 'debug'),
-  transport:
-    process.env.NODE_ENV === 'development'
-      ? {
-          target: 'pino-pretty',
-          options: {
-            colorize: true,
-            translateTime: 'HH:MM:ss Z',
-            ignore: 'pid,hostname',
-          },
-        }
-      : undefined,
-  formatters: {
-    level: (label) => {
-      return { level: label.toUpperCase() }
-    },
-  },
-  timestamp: pino.stdTimeFunctions.isoTime,
-})
-
-// Export logger methods with consistent API
+/**
+ * Very small logger wrapper that writes directly to the console.
+ * This keeps logging simple and avoids any external logging dependencies.
+ */
 export const log = {
-  debug: (message: string, data?: Record<string, unknown>) => logger.debug(data, message),
-  info: (message: string, data?: Record<string, unknown>) => logger.info(data, message),
-  warn: (message: string, data?: Record<string, unknown>) => logger.warn(data, message),
-  error: (message: string, error?: Error | unknown, data?: Record<string, unknown>) => {
-    if (error instanceof Error) {
-      logger.error({ err: error, ...data }, message)
-    } else {
-      logger.error(data, message, error)
+  debug: (message: string, context?: LogContext) => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug(message, context ?? {})
     }
+  },
+  info: (message: string, context?: LogContext) => {
+    console.info(message, context ?? {})
+  },
+  warn: (message: string, context?: LogContext) => {
+    console.warn(message, context ?? {})
+  },
+  error: (message: string, errorOrContext?: unknown, maybeContext?: LogContext) => {
+    const context: LogContext =
+      typeof maybeContext === 'object' && maybeContext !== null
+        ? (maybeContext as LogContext)
+        : typeof errorOrContext === 'object' && errorOrContext !== null && !(errorOrContext instanceof Error)
+          ? (errorOrContext as LogContext)
+          : undefined
+
+    const error = errorOrContext instanceof Error ? errorOrContext : undefined
+
+    console.error(message, {
+      ...(context ?? {}),
+      error: error ?? (errorOrContext && !error ? errorOrContext : undefined),
+    })
   },
 }
 
-export default logger
+export default log

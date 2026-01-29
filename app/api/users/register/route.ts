@@ -5,7 +5,6 @@ import crypto from 'crypto'
 import { pgPool } from '@/lib/pg'
 import { generateToken } from '@/lib/jwt'
 import { log } from '@/lib/logger'
-import { sendEmail, generateVerificationEmail } from '@/lib/email'
 import { csrfProtection } from '@/lib/csrf'
 import { rateLimit } from '@/lib/rate-limit'
 import { reportApiError } from '@/lib/error-reporting'
@@ -79,30 +78,6 @@ export async function POST(req: NextRequest) {
 
     const user = inserted.rows[0]
 
-    // Send verification email
-    const verificationLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/verify-email?token=${verificationToken}`
-    const emailContent = generateVerificationEmail(verificationLink, user.name)
-    
-    try {
-      await sendEmail({
-        to: user.email,
-        subject: emailContent.subject,
-        html: emailContent.html,
-        text: emailContent.text,
-      })
-      log.info('Verification email sent', { 
-        userId: user.id, 
-        email: user.email 
-      })
-    } catch (error: any) {
-      // Log error but don't fail registration - user can request resend later
-      log.error('Failed to send verification email', { 
-        userId: user.id, 
-        email: user.email,
-        error: error.message 
-      })
-    }
-
     const token = generateToken(user.email, 'customer')
 
     const response = NextResponse.json(
@@ -115,8 +90,8 @@ export async function POST(req: NextRequest) {
           phone: user.phone || undefined,
           role: user.role,
         },
-        message: 'Registration successful. Please check your email to verify your account.',
-        requiresVerification: true,
+        message: 'Registration successful.',
+        requiresVerification: false,
       },
       { status: 201 },
     )

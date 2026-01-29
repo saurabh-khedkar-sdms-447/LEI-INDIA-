@@ -14,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import Image from 'next/image'
 import {
   Dialog,
   DialogContent,
@@ -99,9 +100,9 @@ export default function AdminBlogsPage() {
         `${process.env.NEXT_PUBLIC_API_URL || ''}/api/blogs`,
       )
       const data = await response.json()
-      setBlogs(data)
-    } catch (error) {
-      console.error('Failed to fetch blogs:', error)
+      setBlogs(Array.isArray(data) ? data : [])
+    } catch {
+      setBlogs([])
     } finally {
       setIsLoading(false)
     }
@@ -128,8 +129,7 @@ export default function AdminBlogsPage() {
       const data = await response.json()
       setBlogImage(data.url)
       setValue('image', data.url)
-    } catch (error) {
-      console.error('Image upload failed:', error)
+    } catch {
       alert('Failed to upload image')
     } finally {
       setUploadingImage(false)
@@ -189,8 +189,7 @@ export default function AdminBlogsPage() {
       fetchBlogs()
       reset()
       setBlogImage('')
-    } catch (error) {
-      console.error('Failed to save blog:', error)
+    } catch {
       alert('Failed to save blog')
     }
   }
@@ -209,8 +208,7 @@ export default function AdminBlogsPage() {
       if (!response.ok) throw new Error('Failed to delete blog')
 
       fetchBlogs()
-    } catch (error) {
-      console.error('Failed to delete blog:', error)
+    } catch {
       alert('Failed to delete blog')
     }
   }
@@ -385,10 +383,11 @@ export default function AdminBlogsPage() {
                 </div>
                 {blogImage && (
                   <div className="relative w-full h-48">
-                    <img
+                    <Image
                       src={`${process.env.NEXT_PUBLIC_API_URL || ''}${blogImage}`}
                       alt="Blog"
-                      className="w-full h-full object-cover rounded border"
+                      fill
+                      className="object-cover rounded border"
                     />
                     <Button
                       type="button"

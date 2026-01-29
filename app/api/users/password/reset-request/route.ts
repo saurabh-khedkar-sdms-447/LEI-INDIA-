@@ -3,7 +3,6 @@ import { z } from 'zod'
 import { pgPool } from '@/lib/pg'
 import crypto from 'crypto'
 import { log } from '@/lib/logger'
-import { sendEmail, generatePasswordResetEmail } from '@/lib/email'
 import { csrfProtection } from '@/lib/csrf'
 import { rateLimit } from '@/lib/rate-limit'
 import { reportApiError } from '@/lib/error-reporting'
@@ -77,32 +76,8 @@ export async function POST(req: NextRequest) {
       [user.id, resetToken, expiresAt],
     )
 
-    // Send password reset email
-    const resetLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`
-    const emailContent = generatePasswordResetEmail(resetLink, user.name)
-    
-    try {
-      await sendEmail({
-        to: user.email,
-        subject: emailContent.subject,
-        html: emailContent.html,
-        text: emailContent.text,
-      })
-      log.info('Password reset email sent', { 
-        userId: user.id,
-        email: user.email 
-      })
-    } catch (error: any) {
-      log.error('Failed to send password reset email', { 
-        userId: user.id,
-        email: user.email,
-        error: error.message 
-      })
-      // Still return success to prevent email enumeration
-    }
-
     return NextResponse.json({
-      message: 'If an account exists with this email, a password reset link has been sent.',
+      message: 'If an account exists with this email, a password reset token has been created.',
     })
   } catch (error: any) {
     if (error?.name === 'ZodError') {

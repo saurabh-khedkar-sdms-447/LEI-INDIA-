@@ -122,62 +122,16 @@ class ApiClient {
       'Content-Type': 'application/json',
       ...(options.headers || {}),
     }
-    
+
     const response = await this.fetchWithTimeout(url, {
       ...options,
       method: 'POST',
       credentials: 'include',
       headers,
       body: data ? JSON.stringify(data) : undefined,
-    })
-    return this.handleResponse<T>(response)
-  }
-
-  async put<T>(endpoint: string, data?: any, options: RequestOptions = {}): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-    }
-    
-    const response = await this.fetchWithTimeout(url, {
-      ...options,
-      method: 'PUT',
-      credentials: 'include',
-      headers,
-      body: data ? JSON.stringify(data) : undefined,
-    })
-    return this.handleResponse<T>(response)
-  }
-
-  async delete<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`
-    const response = await this.fetchWithTimeout(url, {
-      ...options,
-      method: 'DELETE',
-      credentials: 'include',
-      headers: {
-        ...(options.headers || {}),
-      },
-    })
-    return this.handleResponse<T>(response)
-  }
-
-  async upload<T>(endpoint: string, formData: FormData, options: RequestOptions = {}): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`
-    const response = await this.fetchWithTimeout(url, {
-      ...options,
-      method: 'POST',
-      credentials: 'include',
-      // Don't set Content-Type for FormData, browser will set it with boundary
-      headers: {
-        ...(options.headers || {}),
-      },
-      body: formData,
     })
     return this.handleResponse<T>(response)
   }
 }
 
 export const apiClient = new ApiClient()
-export type { ApiError }

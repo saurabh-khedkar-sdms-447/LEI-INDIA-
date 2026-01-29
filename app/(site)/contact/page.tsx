@@ -87,9 +87,6 @@ export default function ContactPage() {
       reset()
       setTimeout(() => setSubmitted(false), 5000)
     } catch (error: any) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Submission error:', error)
-      }
       // Handle validation errors with details
       if (error?.data?.details && Array.isArray(error.data.details)) {
         const errorMessages = error.data.details.map((d: any) => d.message).join(', ')
@@ -123,25 +120,22 @@ export default function ContactPage() {
                 <CardHeader>
                   <CardTitle>Send us a Message</CardTitle>
                   <CardDescription>
-                    Fill out the form below and we'll get back to you as soon as possible.
+                    Fill out the form below and we&apos;ll get back to you as soon as possible.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   {submitted ? (
-                    <div className="text-center py-8">
+                      <div className="text-center py-8">
                       <div className="text-green-600 mb-2 text-lg font-semibold">
                         ✓ Message Sent Successfully!
                       </div>
                       <p className="text-sm text-gray-600">
-                        We'll get back to you within 24 hours.
+                        We&apos;ll get back to you within 24 hours.
                       </p>
                     </div>
                   ) : (
                     <form 
                       onSubmit={handleSubmit(onSubmit, (errors) => {
-                        if (process.env.NODE_ENV === 'development') {
-                          console.log('Form validation errors:', errors)
-                        }
                         // Show first error if validation fails
                         const firstError = Object.values(errors)[0]
                         if (firstError?.message) {

@@ -75,7 +75,7 @@ export default function AboutPage() {
                   We specialize in M12, M8, and RJ45 industrial connectors, PROFINET products, and custom cable solutions. Our commitment to quality, technical excellence, and customer service has made us a preferred supplier for leading industrial automation companies.
                 </p>
                 <p className="text-gray-600">
-                  Today, we serve customers across multiple industries, from manufacturing and automation to telecommunications and energy. Our global network of partners ensures that we can deliver solutions wherever they're needed, with no minimum order quantities and comprehensive technical support.
+                  Today, we serve customers across multiple industries, from manufacturing and automation to telecommunications and energy. Our global network of partners ensures that we can deliver solutions wherever they&apos;re needed, with no minimum order quantities and comprehensive technical support.
                 </p>
               </div>
             </div>
@@ -169,7 +169,7 @@ export default function AboutPage() {
               Ready to Work Together?
             </h2>
             <p className="text-lg mb-8 opacity-90">
-              Let's discuss how we can help with your industrial connectivity needs
+              Let&apos;s discuss how we can help with your industrial connectivity needs
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button asChild variant="secondary" size="lg">

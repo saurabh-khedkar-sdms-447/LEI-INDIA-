@@ -57,32 +57,30 @@ export default function AdminContactInfoPage() {
   })
 
   useEffect(() => {
-    fetchContactInfo()
-  }, [])
-
-  const fetchContactInfo = async () => {
-    try {
-      const response = await fetch(`/api/contact-info`)
-      const data = await response.json()
-      setContactInfo(data)
-      reset({
-        phone: data.phone || '',
-        email: data.email || '',
-        address: data.address || '',
-        registeredAddress: data.registeredAddress || '',
-        factoryLocation2: data.factoryLocation2 || '',
-        regionalContacts: {
-          bangalore: data.regionalContacts?.bangalore || '',
-          kolkata: data.regionalContacts?.kolkata || '',
-          gurgaon: data.regionalContacts?.gurgaon || '',
-        },
-      })
-    } catch (error) {
-      console.error('Failed to fetch contact info:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
+    void (async () => {
+      try {
+        const response = await fetch(`/api/contact-info`)
+        const data = await response.json()
+        setContactInfo(data)
+        reset({
+          phone: data.phone || '',
+          email: data.email || '',
+          address: data.address || '',
+          registeredAddress: data.registeredAddress || '',
+          factoryLocation2: data.factoryLocation2 || '',
+          regionalContacts: {
+            bangalore: data.regionalContacts?.bangalore || '',
+            kolkata: data.regionalContacts?.kolkata || '',
+            gurgaon: data.regionalContacts?.gurgaon || '',
+          },
+        })
+      } catch {
+        // Leave default contact info if fetch fails
+      } finally {
+        setIsLoading(false)
+      }
+    })()
+  }, [reset])
 
   const onSubmit = async (data: ContactInfoFormData) => {
     if (!isAuthenticated) return
@@ -107,8 +105,7 @@ export default function AdminContactInfoPage() {
       setContactInfo(updated)
       setSaveSuccess(true)
       setTimeout(() => setSaveSuccess(false), 3000)
-    } catch (error) {
-      console.error('Failed to update contact info:', error)
+    } catch {
       alert('Failed to update contact information')
     } finally {
       setIsSaving(false)
@@ -127,7 +124,7 @@ export default function AdminContactInfoPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Contact Information</h1>
-        <p className="text-gray-600 mt-2">Manage your company's contact details</p>
+        <p className="text-gray-600 mt-2">Manage your company&apos;s contact details</p>
       </div>
 
       <Card>

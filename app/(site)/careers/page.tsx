@@ -62,14 +62,8 @@ export default function CareersPage() {
       }
       const data = await response.json()
       // Ensure data is an array
-      if (Array.isArray(data)) {
-        setJobOpenings(data)
-      } else {
-        console.error('Invalid response format:', data)
-        setJobOpenings([])
-      }
-    } catch (error) {
-      console.error('Failed to fetch careers:', error)
+      setJobOpenings(Array.isArray(data) ? data : [])
+    } catch {
       setJobOpenings([])
     } finally {
       setIsLoading(false)
@@ -88,7 +82,7 @@ export default function CareersPage() {
                 Join Our Team
               </h1>
               <p className="text-lg text-gray-600 mb-8">
-                At LEI Indias, we're building the future of industrial connectivity. Join us in delivering innovative solutions to customers worldwide.
+                At LEI Indias, we&apos;re building the future of industrial connectivity. Join us in delivering innovative solutions to customers worldwide.
               </p>
               <Button asChild size="lg">
                 <Link href="#openings">
@@ -199,9 +193,9 @@ export default function CareersPage() {
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <Card className="max-w-2xl mx-auto">
               <CardHeader>
-                <CardTitle>Don't See a Role That Fits?</CardTitle>
+                <CardTitle>Don&apos;t See a Role That Fits?</CardTitle>
                 <CardDescription>
-                  We're always looking for talented individuals. Send us your resume and we'll keep you in mind for future opportunities.
+                  We&apos;re always looking for talented individuals. Send us your resume and we&apos;ll keep you in mind for future opportunities.
                 </CardDescription>
               </CardHeader>
               <CardContent>

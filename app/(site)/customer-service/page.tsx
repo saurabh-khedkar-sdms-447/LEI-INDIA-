@@ -70,7 +70,7 @@ export default function CustomerServicePage() {
                 Customer Service
               </h1>
               <p className="text-xl text-gray-600 mb-8">
-                We're here to help you with any questions or concerns
+                We&apos;re here to help you with any questions or concerns
               </p>
             </div>
           </div>

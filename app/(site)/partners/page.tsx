@@ -158,7 +158,7 @@ export default function GlobalPartnersPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <p className="text-gray-600">
-                    We're continuously expanding our global partner network. If you're a distributor, reseller, or service provider in the industrial connectivity space, we'd love to explore a partnership.
+                    We&apos;re continuously expanding our global partner network. If you&apos;re a distributor, reseller, or service provider in the industrial connectivity space, we&apos;d love to explore a partnership.
                   </p>
                   <div>
                     <p className="font-semibold mb-2">What we look for in partners:</p>

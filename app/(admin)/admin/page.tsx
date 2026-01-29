@@ -92,7 +92,6 @@ export default function AdminDashboard() {
           recentInquiries,
         })
       } catch (error) {
-        console.error('Failed to fetch stats:', error)
         const errorMessage = error instanceof Error ? error.message : 'Failed to load dashboard data. Please refresh the page or try again later.'
         setError(errorMessage)
       } finally {

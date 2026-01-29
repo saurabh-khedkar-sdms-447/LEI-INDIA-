@@ -86,8 +86,8 @@ export default function AdminOrdersPage() {
       const data = await response.json()
       setOrders(data)
       setFilteredOrders(data)
-    } catch (error) {
-      console.error('Failed to fetch orders:', error)
+    } catch {
+      // Leave orders empty on failure; UI already reflects lack of data.
     } finally {
       setIsLoading(false)
     }
@@ -114,8 +114,7 @@ export default function AdminOrdersPage() {
       if (selectedOrder?.id === orderId) {
         setSelectedOrder({ ...selectedOrder, status: newStatus as any })
       }
-    } catch (error) {
-      console.error('Failed to update order:', error)
+    } catch {
       alert('Failed to update order status')
     }
   }

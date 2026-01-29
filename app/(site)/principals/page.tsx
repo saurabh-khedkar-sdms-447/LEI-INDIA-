@@ -162,12 +162,12 @@ export default function PrincipalsPage() {
                 <CardHeader>
                   <CardTitle className="text-2xl">Become a Principal Partner</CardTitle>
                   <CardDescription>
-                    We're always looking to expand our network of trusted manufacturing partners
+                    We&apos;re always looking to expand our network of trusted manufacturing partners
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <p className="text-gray-600">
-                    If you're a manufacturer of industrial connectivity products and interested in partnering with us, we'd love to hear from you. We seek partners who share our commitment to quality, innovation, and customer service.
+                    If you&apos;re a manufacturer of industrial connectivity products and interested in partnering with us, we&apos;d love to hear from you. We seek partners who share our commitment to quality, innovation, and customer service.
                   </p>
                   <div>
                     <p className="font-semibold mb-2">What we look for in partners:</p>

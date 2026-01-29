@@ -29,19 +29,17 @@ export function Footer() {
   })
 
   useEffect(() => {
-    const fetchContactInfo = async () => {
+    void (async () => {
       try {
         const response = await fetch('/api/contact-info')
         if (response.ok) {
           const data = await response.json()
           setContactInfo(data)
         }
-      } catch (error) {
-        console.error('Failed to fetch contact info:', error)
+      } catch {
+        // Use default contact info on failure
       }
-    }
-
-    fetchContactInfo()
+    })()
   }, [])
 
   return (
