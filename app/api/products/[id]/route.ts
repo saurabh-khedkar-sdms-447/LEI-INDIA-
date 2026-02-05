@@ -27,13 +27,40 @@ export async function GET(
     const result = await pgPool.query(
       `
       SELECT
-        id, sku, name, category, description, "technicalDescription", coding, pins,
-        "ipRating", gender, "connectorType", material, voltage, current,
-        "temperatureRange", "wireGauge", "cableLength", price, "priceType",
-        "inStock", "stockQuantity", images, documents, "datasheetUrl",
-        "createdAt", "updatedAt"
-      FROM "Product"
-      WHERE id = $1
+        p.id,
+        p.description,
+        p.mpn,
+        p."categoryId",
+        p."productType",
+        p.coupling,
+        p."ipRating" as "degreeOfProtection",
+        p."wireCrossSection",
+        p."temperatureRange",
+        p."cableDiameter",
+        p."cableMantleColor",
+        p."cableMantleMaterial",
+        p."cableLength",
+        p."glandMaterial",
+        p."housingMaterial",
+        p."pinContact",
+        p."socketContact",
+        p."cableDragChainSuitable",
+        p."tighteningTorqueMax",
+        p."bendingRadiusFixed",
+        p."bendingRadiusRepeated",
+        p."contactPlating",
+        p.voltage as "operatingVoltage",
+        p.current as "ratedCurrent",
+        p."halogenFree",
+        p."connectorType",
+        p.coding as "code",
+        p."strippingForce",
+        p.images,
+        p.documents,
+        p."createdAt",
+        p."updatedAt"
+      FROM "Product" p
+      WHERE p.id = $1
       `,
       [params.id],
     )
@@ -44,8 +71,21 @@ export async function GET(
     }
 
     return NextResponse.json(product)
-  } catch (error) {
+  } catch (error: any) {
     log.error('Error fetching product', error)
+    
+    // Check if this is a missing column error
+    if (error?.code === '42703' && error?.message?.includes('categoryId')) {
+      return NextResponse.json(
+        { 
+          error: 'Database schema migration required',
+          message: 'The categoryId column is missing. Please run: pnpm migrate:category-id',
+          code: 'MIGRATION_REQUIRED'
+        },
+        { status: 500 }
+      )
+    }
+    
     return NextResponse.json({ error: 'Failed to fetch product' }, { status: 500 })
   }
 }
@@ -82,10 +122,14 @@ export async function PUT(
     const existingResult = await pgPool.query(
       `
       SELECT
-        id, sku, name, category, description, "technicalDescription", coding, pins,
-        "ipRating", gender, "connectorType", material, voltage, current,
-        "temperatureRange", "wireGauge", "cableLength", price, "priceType",
-        "inStock", "stockQuantity", images, documents, "datasheetUrl"
+        id, description, mpn, "categoryId", "productType", coupling, "ipRating",
+        "wireCrossSection", "temperatureRange", "cableDiameter",
+        "cableMantleColor", "cableMantleMaterial", "cableLength",
+        "glandMaterial", "housingMaterial", "pinContact", "socketContact",
+        "cableDragChainSuitable", "tighteningTorqueMax",
+        "bendingRadiusFixed", "bendingRadiusRepeated", "contactPlating",
+        voltage, current, "halogenFree", "connectorType", coding,
+        "strippingForce", images, documents
       FROM "Product"
       WHERE id = $1
       `,
@@ -100,74 +144,85 @@ export async function PUT(
     const sanitizedDescription = parsed.description !== undefined 
       ? sanitizeRichText(parsed.description) 
       : existing.description
-    const sanitizedTechnicalDescription = parsed.technicalDescription !== undefined
-      ? (parsed.technicalDescription ? sanitizeRichText(parsed.technicalDescription) : null)
-      : existing.technicalDescription
 
     const updatedResult = await pgPool.query(
       `
       UPDATE "Product"
       SET
-        sku = $1,
-        name = $2,
-        category = $3,
-        description = $4,
-        "technicalDescription" = $5,
-        coding = $6,
-        pins = $7,
-        "ipRating" = $8,
-        gender = $9,
-        "connectorType" = $10,
-        material = $11,
-        voltage = $12,
-        current = $13,
-        "temperatureRange" = $14,
-        "wireGauge" = $15,
-        "cableLength" = $16,
-        price = $17,
-        "priceType" = $18,
-        "inStock" = $19,
-        "stockQuantity" = $20,
-        images = $21,
-        documents = $22,
-        "datasheetUrl" = $23,
+        description = $1,
+        "categoryId" = $2,
+        mpn = $3,
+        "productType" = $4,
+        coupling = $5,
+        "ipRating" = $6,
+        "wireCrossSection" = $7,
+        "temperatureRange" = $8,
+        "cableDiameter" = $9,
+        "cableMantleColor" = $10,
+        "cableMantleMaterial" = $11,
+        "cableLength" = $12,
+        "glandMaterial" = $13,
+        "housingMaterial" = $14,
+        "pinContact" = $15,
+        "socketContact" = $16,
+        "cableDragChainSuitable" = $17,
+        "tighteningTorqueMax" = $18,
+        "bendingRadiusFixed" = $19,
+        "bendingRadiusRepeated" = $20,
+        "contactPlating" = $21,
+        voltage = $22,
+        current = $23,
+        "halogenFree" = $24,
+        "connectorType" = $25,
+        coding = $26,
+        "strippingForce" = $27,
+        images = $28,
+        documents = $29,
         "updatedAt" = NOW()
-      WHERE id = $24
+      WHERE id = $30
       RETURNING
-        id, sku, name, category, description, "technicalDescription", coding, pins,
-        "ipRating", gender, "connectorType", material, voltage, current,
-        "temperatureRange", "wireGauge", "cableLength", price, "priceType",
-        "inStock", "stockQuantity", images, documents, "datasheetUrl",
+        id, description,
+        "categoryId",
+        mpn, "productType", coupling, "ipRating" as "degreeOfProtection",
+        "wireCrossSection", "temperatureRange", "cableDiameter",
+        "cableMantleColor", "cableMantleMaterial", "cableLength",
+        "glandMaterial", "housingMaterial", "pinContact", "socketContact",
+        "cableDragChainSuitable", "tighteningTorqueMax",
+        "bendingRadiusFixed", "bendingRadiusRepeated", "contactPlating",
+        voltage as "operatingVoltage", current as "ratedCurrent", "halogenFree", "connectorType", coding as "code",
+        "strippingForce", images, documents,
         "createdAt", "updatedAt"
       `,
       [
-        parsed.sku ?? existing.sku,
-        parsed.name ?? existing.name,
-        parsed.category ?? existing.category,
         sanitizedDescription,
-        sanitizedTechnicalDescription,
-        parsed.coding ?? existing.coding,
-        parsed.pins ?? existing.pins,
-        parsed.ipRating ?? existing.ipRating,
-        parsed.gender ?? existing.gender,
-        parsed.connectorType ?? existing.connectorType,
-        parsed.specifications?.material ?? existing.material,
-        parsed.specifications?.voltage ?? existing.voltage,
-        parsed.specifications?.current ?? existing.current,
-        parsed.specifications?.temperatureRange ?? existing.temperatureRange,
-        parsed.specifications && 'wireGauge' in parsed.specifications
-          ? parsed.specifications.wireGauge
-          : existing.wireGauge,
-        parsed.specifications && 'cableLength' in parsed.specifications
-          ? parsed.specifications.cableLength
-          : existing.cableLength,
-        parsed.price ?? existing.price,
-        parsed.priceType ?? existing.priceType,
-        parsed.inStock ?? existing.inStock,
-        parsed.stockQuantity ?? existing.stockQuantity,
-        parsed.images ?? existing.images,
+        parsed.categoryId !== undefined ? parsed.categoryId ?? null : existing.categoryId,
+        parsed.mpn !== undefined ? parsed.mpn ?? null : existing.mpn,
+        parsed.productType !== undefined ? parsed.productType ?? null : existing.productType,
+        parsed.coupling !== undefined ? parsed.coupling ?? null : existing.coupling,
+        parsed.degreeOfProtection !== undefined ? parsed.degreeOfProtection ?? null : existing.ipRating,
+        parsed.wireCrossSection !== undefined ? parsed.wireCrossSection ?? null : existing.wireCrossSection,
+        parsed.temperatureRange !== undefined ? parsed.temperatureRange ?? null : existing.temperatureRange,
+        parsed.cableDiameter !== undefined ? parsed.cableDiameter ?? null : existing.cableDiameter,
+        parsed.cableMantleColor !== undefined ? parsed.cableMantleColor ?? null : existing.cableMantleColor,
+        parsed.cableMantleMaterial !== undefined ? parsed.cableMantleMaterial ?? null : existing.cableMantleMaterial,
+        parsed.cableLength !== undefined ? parsed.cableLength ?? null : existing.cableLength,
+        parsed.glandMaterial !== undefined ? parsed.glandMaterial ?? null : existing.glandMaterial,
+        parsed.housingMaterial !== undefined ? parsed.housingMaterial ?? null : existing.housingMaterial,
+        parsed.pinContact !== undefined ? parsed.pinContact ?? null : existing.pinContact,
+        parsed.socketContact !== undefined ? parsed.socketContact ?? null : existing.socketContact,
+        parsed.cableDragChainSuitable !== undefined ? parsed.cableDragChainSuitable ?? null : existing.cableDragChainSuitable,
+        parsed.tighteningTorqueMax !== undefined ? parsed.tighteningTorqueMax ?? null : existing.tighteningTorqueMax,
+        parsed.bendingRadiusFixed !== undefined ? parsed.bendingRadiusFixed ?? null : existing.bendingRadiusFixed,
+        parsed.bendingRadiusRepeated !== undefined ? parsed.bendingRadiusRepeated ?? null : existing.bendingRadiusRepeated,
+        parsed.contactPlating !== undefined ? parsed.contactPlating ?? null : existing.contactPlating,
+        parsed.operatingVoltage !== undefined ? parsed.operatingVoltage ?? null : existing.voltage,
+        parsed.ratedCurrent !== undefined ? parsed.ratedCurrent ?? null : existing.current,
+        parsed.halogenFree !== undefined ? parsed.halogenFree ?? null : existing.halogenFree,
+        parsed.connectorType !== undefined ? parsed.connectorType ?? null : existing.connectorType,
+        parsed.code !== undefined ? parsed.code ?? null : existing.coding,
+        parsed.strippingForce !== undefined ? parsed.strippingForce ?? null : existing.strippingForce,
+        parsed.images !== undefined ? parsed.images : existing.images,
         parsed.documents !== undefined ? parsed.documents : (existing.documents || []),
-        parsed.datasheetUrl !== undefined ? parsed.datasheetUrl || null : existing.datasheetUrl,
         params.id,
       ],
     )
@@ -188,6 +243,19 @@ export async function PUT(
     }
 
     log.error('Error updating product', error)
+    
+    // Check if this is a missing column error
+    if (error?.code === '42703' && error?.message?.includes('categoryId')) {
+      return NextResponse.json(
+        { 
+          error: 'Database schema migration required',
+          message: 'The categoryId column is missing. Please run: pnpm migrate:category-id',
+          code: 'MIGRATION_REQUIRED'
+        },
+        { status: 500 }
+      )
+    }
+    
     return NextResponse.json({ error: 'Failed to update product' }, { status: 400 })
   }
 }

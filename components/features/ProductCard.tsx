@@ -26,8 +26,8 @@ export function ProductCard({ product }: ProductCardProps) {
   const handleAddToRFQ = () => {
     addItem({
       productId: product.id,
-      sku: product.sku,
-      name: product.name,
+      sku: product.mpn || product.id,
+      name: product.description.substring(0, 50) || product.mpn || product.id,
       quantity: 1,
     })
   }
@@ -45,7 +45,7 @@ export function ProductCard({ product }: ProductCardProps) {
           {product.images && product.images.length > 0 && product.images[0] && !imageError ? (
             <Image
               src={product.images[0]}
-              alt={product.name}
+              alt={product.mpn || product.description.substring(0, 50) || 'Product'}
               fill
               className="object-cover"
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
@@ -69,25 +69,21 @@ export function ProductCard({ product }: ProductCardProps) {
               </svg>
             </div>
           )}
-          {product.inStock && (
-            <Badge className="absolute top-2 right-2 bg-green-500">
-              <CheckCircle2 className="h-3 w-3 mr-1" />
-              In Stock
-            </Badge>
-          )}
         </div>
         <CardHeader className="space-y-2">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <CardTitle className="text-lg line-clamp-2">{product.name}</CardTitle>
-              <CardDescription className="text-sm">SKU: {product.sku}</CardDescription>
+              <CardTitle className="text-lg line-clamp-2">{product.mpn || product.description.substring(0, 50)}</CardTitle>
+              {product.mpn && (
+                <CardDescription className="text-sm">MPN: {product.mpn}</CardDescription>
+              )}
             </div>
             <div className="flex items-center gap-1">
               <Checkbox
                 id={`compare-${product.id}`}
                 checked={isSelectedForCompare}
                 onCheckedChange={() => toggleItem(product)}
-                aria-label={`${isSelectedForCompare ? 'Remove' : 'Add'} ${product.name} to comparison`}
+                aria-label={`${isSelectedForCompare ? 'Remove' : 'Add'} product to comparison`}
               />
               <label
                 htmlFor={`compare-${product.id}`}
@@ -107,14 +103,11 @@ export function ProductCard({ product }: ProductCardProps) {
             {product.connectorType && (
               <Badge variant="outline">{product.connectorType}</Badge>
             )}
-            {product.coding && (
-              <Badge variant="outline">{product.coding}-Code</Badge>
+            {product.code && (
+              <Badge variant="outline">{product.code}-Code</Badge>
             )}
-            {product.pins && (
-              <Badge variant="outline">{product.pins} Pin</Badge>
-            )}
-            {product.ipRating && (
-              <Badge variant="outline">{product.ipRating}</Badge>
+            {product.degreeOfProtection && (
+              <Badge variant="outline">{product.degreeOfProtection}</Badge>
             )}
           </div>
         </CardContent>
@@ -123,7 +116,7 @@ export function ProductCard({ product }: ProductCardProps) {
             onClick={handleAddToRFQ}
             className="flex-1"
             size="sm"
-            aria-label={`Add ${product.name} to RFQ`}
+            aria-label={`Add product to RFQ`}
           >
             Add to RFQ
           </Button>
@@ -132,7 +125,7 @@ export function ProductCard({ product }: ProductCardProps) {
             variant="outline"
             className="flex-1"
             size="sm"
-            aria-label={`View specifications for ${product.name}`}
+            aria-label={`View specifications`}
           >
             <Link href={`/products/${product.id}`}>
               <FileText className="h-4 w-4 mr-2" aria-hidden="true" />

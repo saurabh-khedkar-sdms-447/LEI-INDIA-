@@ -42,10 +42,10 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
   }
 
   return {
-    title: product.name,
+    title: product.mpn || product.description.substring(0, 50) || 'Product',
     description: product.description,
     openGraph: {
-      title: product.name,
+      title: product.mpn || product.description.substring(0, 50) || 'Product',
       description: product.description,
       images: product.images,
     },
@@ -70,7 +70,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
               <div className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden mb-4">
                 <Image
                   src={product.images[0] || '/images/placeholder.jpg'}
-                  alt={product.name}
+                  alt={product.mpn || product.description.substring(0, 50) || 'Product'}
                   fill
                   className="object-cover"
                   priority
@@ -82,7 +82,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     <div key={index} className="relative aspect-square bg-gray-100 rounded overflow-hidden">
                       <Image
                         src={image}
-                        alt={`${product.name} ${index + 2}`}
+                        alt={`${product.mpn || 'Product'} ${index + 2}`}
                         fill
                         className="object-cover"
                       />
@@ -95,49 +95,24 @@ export default async function ProductPage({ params }: ProductPageProps) {
             {/* Product Info */}
             <div>
               <div className="mb-4">
-                <Badge variant="outline" className="mb-2">{product.category}</Badge>
                 <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
-                  {product.name}
+                  {product.mpn || product.description.substring(0, 50)}
                 </h1>
-                <p className="text-lg text-gray-600 mb-4">SKU: {product.sku}</p>
+                {product.mpn && (
+                  <p className="text-lg text-gray-600 mb-4">MPN: {product.mpn}</p>
+                )}
               </div>
 
               <div className="flex flex-wrap gap-2 mb-6">
-                <Badge>{product.connectorType}</Badge>
-                <Badge>{product.coding}-Code</Badge>
-                <Badge>{product.pins} Pin</Badge>
-                <Badge>{product.ipRating}</Badge>
-                <Badge>{product.gender}</Badge>
-                {product.inStock && (
-                  <Badge className="bg-green-500">
-                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                    In Stock
-                  </Badge>
-                )}
+                {product.connectorType && <Badge>{product.connectorType}</Badge>}
+                {product.code && <Badge>{product.code}-Code</Badge>}
+                {product.degreeOfProtection && <Badge>{product.degreeOfProtection}</Badge>}
               </div>
 
               <p className="text-gray-700 mb-6">{product.description}</p>
 
-              <div className="mb-6">
-                {product.priceType === 'quote' ? (
-                  <p className="text-2xl font-bold text-gray-900 mb-2">Request Quote</p>
-                ) : (
-                  <p className="text-2xl font-bold text-primary mb-2">
-                    ${product.price?.toFixed(2)}
-                  </p>
-                )}
-              </div>
-
               <div className="flex flex-col sm:flex-row gap-4 mb-6">
                 <AddToRFQButton product={product} />
-                {product.datasheetUrl && (
-                  <Button variant="outline" asChild>
-                    <a href={product.datasheetUrl} download>
-                      <Download className="h-4 w-4 mr-2" />
-                      Download Datasheet
-                    </a>
-                  </Button>
-                )}
               </div>
 
               <Card>
@@ -146,22 +121,30 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 </CardHeader>
                 <CardContent>
                   <dl className="grid grid-cols-2 gap-4">
-                    <div>
-                      <dt className="text-sm font-medium text-gray-500">Material</dt>
-                      <dd className="text-sm font-semibold">{product.specifications.material}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-sm font-medium text-gray-500">Voltage</dt>
-                      <dd className="text-sm font-semibold">{product.specifications.voltage}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-sm font-medium text-gray-500">Current</dt>
-                      <dd className="text-sm font-semibold">{product.specifications.current}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-sm font-medium text-gray-500">Temperature</dt>
-                      <dd className="text-sm font-semibold">{product.specifications.temperatureRange}</dd>
-                    </div>
+                    {product.operatingVoltage && (
+                      <div>
+                        <dt className="text-sm font-medium text-gray-500">Operating Voltage</dt>
+                        <dd className="text-sm font-semibold">{product.operatingVoltage}</dd>
+                      </div>
+                    )}
+                    {product.ratedCurrent && (
+                      <div>
+                        <dt className="text-sm font-medium text-gray-500">Rated Current</dt>
+                        <dd className="text-sm font-semibold">{product.ratedCurrent}</dd>
+                      </div>
+                    )}
+                    {product.temperatureRange && (
+                      <div>
+                        <dt className="text-sm font-medium text-gray-500">Temperature Range</dt>
+                        <dd className="text-sm font-semibold">{product.temperatureRange}</dd>
+                      </div>
+                    )}
+                    {product.degreeOfProtection && (
+                      <div>
+                        <dt className="text-sm font-medium text-gray-500">Degree of Protection</dt>
+                        <dd className="text-sm font-semibold">{product.degreeOfProtection}</dd>
+                      </div>
+                    )}
                   </dl>
                 </CardContent>
               </Card>
@@ -169,77 +152,171 @@ export default async function ProductPage({ params }: ProductPageProps) {
           </div>
 
           {/* Technical Specifications */}
-          <Tabs defaultValue="specs" className="mb-12">
-            <TabsList>
-              <TabsTrigger value="specs">Technical Specifications</TabsTrigger>
-              <TabsTrigger value="description">Description</TabsTrigger>
-            </TabsList>
-            <TabsContent value="specs">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Technical Specifications</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left p-3 font-semibold">Specification</th>
-                          <th className="text-left p-3 font-semibold">Value</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr className="border-b">
-                          <td className="p-3">Material</td>
-                          <td className="p-3 font-medium">{product.specifications.material}</td>
-                        </tr>
-                        <tr className="border-b">
-                          <td className="p-3">Voltage</td>
-                          <td className="p-3 font-medium">{product.specifications.voltage}</td>
-                        </tr>
-                        <tr className="border-b">
-                          <td className="p-3">Current</td>
-                          <td className="p-3 font-medium">{product.specifications.current}</td>
-                        </tr>
-                        <tr className="border-b">
-                          <td className="p-3">Temperature Range</td>
-                          <td className="p-3 font-medium">{product.specifications.temperatureRange}</td>
-                        </tr>
-                        {product.specifications.wireGauge && (
-                          <tr className="border-b">
-                            <td className="p-3">Wire Gauge</td>
-                            <td className="p-3 font-medium">{product.specifications.wireGauge}</td>
-                          </tr>
-                        )}
-                        {product.specifications.cableLength && (
-                          <tr className="border-b">
-                            <td className="p-3">Cable Length</td>
-                            <td className="p-3 font-medium">{product.specifications.cableLength}</td>
-                          </tr>
-                        )}
-                        <tr>
-                          <td className="p-3">IP Rating</td>
-                          <td className="p-3 font-medium">{product.ipRating}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-            <TabsContent value="description">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Product Description</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-700 whitespace-pre-line">
-                    {product.technicalDescription}
-                  </p>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+          <Card className="mb-12">
+            <CardHeader>
+              <CardTitle>Technical Specifications</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left p-3 font-semibold">Specification</th>
+                      <th className="text-left p-3 font-semibold">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {product.mpn && (
+                      <tr className="border-b">
+                        <td className="p-3">MPN</td>
+                        <td className="p-3 font-medium">{product.mpn}</td>
+                      </tr>
+                    )}
+                    {product.productType && (
+                      <tr className="border-b">
+                        <td className="p-3">Product Type</td>
+                        <td className="p-3 font-medium">{product.productType}</td>
+                      </tr>
+                    )}
+                    {product.coupling && (
+                      <tr className="border-b">
+                        <td className="p-3">Coupling</td>
+                        <td className="p-3 font-medium">{product.coupling}</td>
+                      </tr>
+                    )}
+                    {product.degreeOfProtection && (
+                      <tr className="border-b">
+                        <td className="p-3">Degree of Protection</td>
+                        <td className="p-3 font-medium">{product.degreeOfProtection}</td>
+                      </tr>
+                    )}
+                    {product.wireCrossSection && (
+                      <tr className="border-b">
+                        <td className="p-3">Wire Cross Section</td>
+                        <td className="p-3 font-medium">{product.wireCrossSection}</td>
+                      </tr>
+                    )}
+                    {product.temperatureRange && (
+                      <tr className="border-b">
+                        <td className="p-3">Temperature Range</td>
+                        <td className="p-3 font-medium">{product.temperatureRange}</td>
+                      </tr>
+                    )}
+                    {product.cableDiameter && (
+                      <tr className="border-b">
+                        <td className="p-3">Cable Diameter</td>
+                        <td className="p-3 font-medium">{product.cableDiameter}</td>
+                      </tr>
+                    )}
+                    {product.cableMantleColor && (
+                      <tr className="border-b">
+                        <td className="p-3">Color of Cable Mantle</td>
+                        <td className="p-3 font-medium">{product.cableMantleColor}</td>
+                      </tr>
+                    )}
+                    {product.cableMantleMaterial && (
+                      <tr className="border-b">
+                        <td className="p-3">Material of Cable Mantle</td>
+                        <td className="p-3 font-medium">{product.cableMantleMaterial}</td>
+                      </tr>
+                    )}
+                    {product.cableLength && (
+                      <tr className="border-b">
+                        <td className="p-3">Cable Length</td>
+                        <td className="p-3 font-medium">{product.cableLength}</td>
+                      </tr>
+                    )}
+                    {product.glandMaterial && (
+                      <tr className="border-b">
+                        <td className="p-3">Material of Gland</td>
+                        <td className="p-3 font-medium">{product.glandMaterial}</td>
+                      </tr>
+                    )}
+                    {product.housingMaterial && (
+                      <tr className="border-b">
+                        <td className="p-3">Housing Material</td>
+                        <td className="p-3 font-medium">{product.housingMaterial}</td>
+                      </tr>
+                    )}
+                    {product.pinContact && (
+                      <tr className="border-b">
+                        <td className="p-3">Pin Contact</td>
+                        <td className="p-3 font-medium">{product.pinContact}</td>
+                      </tr>
+                    )}
+                    {product.socketContact && (
+                      <tr className="border-b">
+                        <td className="p-3">Socket Contact</td>
+                        <td className="p-3 font-medium">{product.socketContact}</td>
+                      </tr>
+                    )}
+                    <tr className="border-b">
+                      <td className="p-3">Cable Drag Chain Suitable</td>
+                      <td className="p-3 font-medium">{product.cableDragChainSuitable ? 'Yes' : 'No'}</td>
+                    </tr>
+                    {product.tighteningTorqueMax && (
+                      <tr className="border-b">
+                        <td className="p-3">Tightening Torque Maximum</td>
+                        <td className="p-3 font-medium">{product.tighteningTorqueMax}</td>
+                      </tr>
+                    )}
+                    {product.bendingRadiusFixed && (
+                      <tr className="border-b">
+                        <td className="p-3">Bending Radius (Fixed)</td>
+                        <td className="p-3 font-medium">{product.bendingRadiusFixed}</td>
+                      </tr>
+                    )}
+                    {product.bendingRadiusRepeated && (
+                      <tr className="border-b">
+                        <td className="p-3">Bending Radius (Repeated)</td>
+                        <td className="p-3 font-medium">{product.bendingRadiusRepeated}</td>
+                      </tr>
+                    )}
+                    {product.contactPlating && (
+                      <tr className="border-b">
+                        <td className="p-3">Contact Plating</td>
+                        <td className="p-3 font-medium">{product.contactPlating}</td>
+                      </tr>
+                    )}
+                    {product.operatingVoltage && (
+                      <tr className="border-b">
+                        <td className="p-3">Operating Voltage</td>
+                        <td className="p-3 font-medium">{product.operatingVoltage}</td>
+                      </tr>
+                    )}
+                    {product.ratedCurrent && (
+                      <tr className="border-b">
+                        <td className="p-3">Rated Current</td>
+                        <td className="p-3 font-medium">{product.ratedCurrent}</td>
+                      </tr>
+                    )}
+                    <tr className="border-b">
+                      <td className="p-3">Halogen Free</td>
+                      <td className="p-3 font-medium">{product.halogenFree ? 'Yes' : 'No'}</td>
+                    </tr>
+                    {product.connectorType && (
+                      <tr className="border-b">
+                        <td className="p-3">Connector Type</td>
+                        <td className="p-3 font-medium">{product.connectorType}</td>
+                      </tr>
+                    )}
+                    {product.code && (
+                      <tr className="border-b">
+                        <td className="p-3">Code</td>
+                        <td className="p-3 font-medium">{product.code}</td>
+                      </tr>
+                    )}
+                    {product.strippingForce && (
+                      <tr>
+                        <td className="p-3">Stripping Force</td>
+                        <td className="p-3 font-medium">{product.strippingForce}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </main>
       <Footer />

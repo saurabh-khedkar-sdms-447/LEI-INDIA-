@@ -39,9 +39,10 @@ export default function AdminDashboard() {
         setError(null)
         // For client-side, relative URLs work fine
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || ''
-        const productsUrl = baseUrl ? `${baseUrl}/api/products?limit=10000` : '/api/products?limit=10000'
-        const ordersUrl = baseUrl ? `${baseUrl}/api/orders` : '/api/orders'
-        const inquiriesUrl = baseUrl ? `${baseUrl}/api/inquiries` : '/api/inquiries'
+        // Request products with total count for dashboard stats
+        const productsUrl = baseUrl ? `${baseUrl}/api/products?limit=1&includeTotal=true` : '/api/products?limit=1&includeTotal=true'
+        const ordersUrl = baseUrl ? `${baseUrl}/api/orders?limit=100` : '/api/orders?limit=100'
+        const inquiriesUrl = baseUrl ? `${baseUrl}/api/inquiries?limit=100` : '/api/inquiries?limit=100'
         const [productsRes, ordersRes, inquiriesRes] = await Promise.all([
           fetch(productsUrl),
           fetch(ordersUrl),
@@ -62,17 +63,24 @@ export default function AdminDashboard() {
         }
 
         const productsData = await productsRes.json()
-        const orders = await ordersRes.json()
-        const inquiries = await inquiriesRes.json()
+        const ordersData = await ordersRes.json()
+        const inquiriesData = await inquiriesRes.json()
 
-        // Handle paginated response for products
+        // Handle paginated response
         const products = Array.isArray(productsData) ? productsData : (productsData.products || [])
+        const orders = Array.isArray(ordersData) ? ordersData : (ordersData.orders || [])
+        const inquiries = Array.isArray(inquiriesData) ? inquiriesData : (inquiriesData.inquiries || [])
 
-        const pendingOrders = Array.isArray(orders) ? orders.filter((o: any) => o.status === 'pending').length : 0
-        const pendingInquiries = Array.isArray(inquiries) ? inquiries.filter((i: any) => !i.read || !i.responded).length : 0
+        // Get totals from pagination if available
+        const totalProducts = productsData.pagination?.total || products.length
+        const totalOrders = ordersData.pagination?.total || orders.length
+        const totalInquiries = inquiriesData.pagination?.total || inquiries.length
 
-        const ordersArray = Array.isArray(orders) ? orders : []
-        const inquiriesArray = Array.isArray(inquiries) ? inquiries : []
+        const pendingOrders = orders.filter((o: any) => o.status === 'pending').length
+        const pendingInquiries = inquiries.filter((i: any) => !i.read || !i.responded).length
+
+        const ordersArray = orders
+        const inquiriesArray = inquiries
 
         const recentOrders = ordersArray
           .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
@@ -83,9 +91,9 @@ export default function AdminDashboard() {
           .slice(0, 5)
 
         setStats({
-          totalProducts: products.length,
-          totalOrders: ordersArray.length,
-          totalInquiries: inquiriesArray.length,
+          totalProducts,
+          totalOrders,
+          totalInquiries,
           pendingOrders,
           pendingInquiries,
           recentOrders,

@@ -93,12 +93,13 @@ export async function PUT(
       SET
         read = COALESCE($1, read),
         responded = COALESCE($2, responded),
+        notes = COALESCE($3, notes),
         "updatedAt" = NOW()
-      WHERE id = $3
-      RETURNING id, name, email, phone, company, subject, message, read, responded,
+      WHERE id = $4
+      RETURNING id, name, email, phone, company, subject, message, read, responded, notes,
                 "createdAt", "updatedAt"
       `,
-      [data.read ?? null, data.responded ?? null, params.id],
+      [data.read ?? null, data.responded ?? null, data.notes ?? null, params.id],
     )
 
     const inquiry = result.rows[0]

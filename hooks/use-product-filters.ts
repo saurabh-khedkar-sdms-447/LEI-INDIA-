@@ -19,6 +19,7 @@ export function useProductFilters() {
       inStock: searchParams.get('inStock') === 'true' ? true : undefined,
       search: searchParams.get('search') || undefined,
       category: searchParams.get('category') || undefined,
+      categoryId: searchParams.get('categoryId') || undefined,
     }
   }, [searchParams])
 

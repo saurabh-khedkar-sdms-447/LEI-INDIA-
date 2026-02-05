@@ -7,7 +7,7 @@ import { rateLimit } from '@/lib/rate-limit'
 import { csrfProtection } from '@/lib/csrf'
 import { log } from '@/lib/logger'
 
-// GET /api/products - list products with pagination and filters
+// GET /api/products - list products with cursor-based pagination and filters
 export async function GET(req: NextRequest) {
   // Rate limiting
   const rateLimitResponse = await rateLimit(req)
@@ -17,28 +17,46 @@ export async function GET(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url)
-    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
-    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10) || 20))
-    const offset = (page - 1) * limit
+    // Check if this is an admin request (has admin_token cookie)
+    const isAdmin = req.cookies.get('admin_token')?.value
+    // Allow higher limits for admin requests
+    const maxLimit = isAdmin ? 10000 : 100
+    const limit = Math.min(maxLimit, Math.max(1, parseInt(searchParams.get('limit') || '20', 10) || 20))
+    
+    // Cursor-based pagination: cursor is the last product id from previous page
+    const cursor = searchParams.get('cursor')
+    const { isValidUUID } = await import('@/lib/validation')
+    const validCursor = cursor && isValidUUID(cursor) ? cursor : null
 
     const idsParam = searchParams.get('ids')
+    const categoryIdParam = searchParams.get('categoryId')
     const connectorType = searchParams.get('connectorType')
-    const coding = searchParams.get('coding')
-    const pins = searchParams.get('pins')
-    const ipRating = searchParams.get('ipRating')
-    const gender = searchParams.get('gender')
-    const inStock = searchParams.get('inStock')
+    const code = searchParams.get('code')
+    const degreeOfProtection = searchParams.get('degreeOfProtection')
     const search = searchParams.get('search')
-    const category = searchParams.get('category')
 
     const filters: string[] = []
     const values: any[] = []
+    let paramIndex = 1
+
+    // Category filtering: use categoryId with optimized index
+    if (categoryIdParam && isValidUUID(categoryIdParam)) {
+      filters.push(`"categoryId" = $${paramIndex}`)
+      values.push(categoryIdParam)
+      paramIndex++
+    }
+
+    // Cursor-based pagination: id > cursor for next page
+    if (validCursor) {
+      filters.push(`id > $${paramIndex}`)
+      values.push(validCursor)
+      paramIndex++
+    }
 
     if (idsParam) {
-      const { isValidUUID } = await import('@/lib/validation')
       const ids = idsParam.split(',').map((id) => id.trim()).filter(Boolean).filter(isValidUUID)
       if (ids.length > 0) {
-        const placeholders = ids.map((_, idx) => `$${values.length + idx + 1}`)
+        const placeholders = ids.map(() => `$${paramIndex++}`)
         filters.push(`id IN (${placeholders.join(',')})`)
         values.push(...ids)
       }
@@ -47,113 +65,144 @@ export async function GET(req: NextRequest) {
     if (connectorType) {
       const list = connectorType.split(',').map((v) => v.trim()).filter(Boolean)
       if (list.length > 0) {
-        const placeholders = list.map((_, idx) => `$${values.length + idx + 1}`)
+        const placeholders = list.map(() => `$${paramIndex++}`)
         filters.push(`"connectorType" IN (${placeholders.join(',')})`)
         values.push(...list)
       }
     }
 
-    if (coding) {
-      const list = coding.split(',').map((v) => v.trim()).filter(Boolean)
+    if (code) {
+      const list = code.split(',').map((v) => v.trim()).filter(Boolean)
       if (list.length > 0) {
-        const placeholders = list.map((_, idx) => `$${values.length + idx + 1}`)
+        const placeholders = list.map(() => `$${paramIndex++}`)
         filters.push(`coding IN (${placeholders.join(',')})`)
         values.push(...list)
       }
     }
 
-    if (pins) {
-      const pinValues = pins
-        .split(',')
-        .map((p) => Number(p))
-        .filter((p) => !Number.isNaN(p))
-      if (pinValues.length > 0) {
-        const placeholders = pinValues.map((_, idx) => `$${values.length + idx + 1}`)
-        filters.push(`pins IN (${placeholders.join(',')})`)
-        values.push(...pinValues)
-      }
-    }
-
-    if (ipRating) {
-      const list = ipRating.split(',').map((v) => v.trim()).filter(Boolean)
+    if (degreeOfProtection) {
+      const list = degreeOfProtection.split(',').map((v) => v.trim()).filter(Boolean)
       if (list.length > 0) {
-        const placeholders = list.map((_, idx) => `$${values.length + idx + 1}`)
+        const placeholders = list.map(() => `$${paramIndex++}`)
         filters.push(`"ipRating" IN (${placeholders.join(',')})`)
         values.push(...list)
       }
     }
 
-    if (gender) {
-      const list = gender.split(',').map((v) => v.trim()).filter(Boolean)
-      if (list.length > 0) {
-        const placeholders = list.map((_, idx) => `$${values.length + idx + 1}`)
-        filters.push(`gender IN (${placeholders.join(',')})`)
-        values.push(...list)
-      }
-    }
-
-    if (inStock === 'true') {
-      filters.push(`"inStock" = true`)
-    }
-
     if (search) {
       // Use trigram similarity for faster text search (requires pg_trgm extension)
-      // This uses GIN indexes instead of full table scans
-      const searchIndex = values.length + 1
-      filters.push(
-        `(name % $${searchIndex} OR sku % $${searchIndex + 1} OR description % $${searchIndex + 2} OR name ILIKE $${searchIndex + 3} OR sku ILIKE $${searchIndex + 4})`,
-      )
       const searchTerm = search.trim()
-      values.push(searchTerm, searchTerm, searchTerm, `%${searchTerm}%`, `%${searchTerm}%`)
-    }
-
-    if (category) {
-      const idx = values.length + 1
-      filters.push(`category ILIKE $${idx}`)
-      values.push(`%${category}%`)
+      filters.push(
+        `(description % $${paramIndex} OR mpn % $${paramIndex + 1} OR description ILIKE $${paramIndex + 2} OR mpn ILIKE $${paramIndex + 3})`,
+      )
+      values.push(searchTerm, searchTerm, `%${searchTerm}%`, `%${searchTerm}%`)
+      paramIndex += 4
     }
 
     const whereClause = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : ''
 
-    // Optimized: Use window function to get count and data in single query
-    // This eliminates one round-trip and reduces latency
-    const dataValues = [...values, limit, offset]
+    // Check if total count is requested (for dashboard stats)
+    const includeTotal = searchParams.get('includeTotal') === 'true'
+
+    // Get total count if requested (excluding cursor filter for accurate total)
+    let total: number | undefined = undefined
+    if (includeTotal) {
+      // Build count query without cursor filter (cursor is for pagination, not filtering)
+      const countFilters = filters.filter((f) => !f.includes('id >'))
+      const countWhere = countFilters.length > 0 ? `WHERE ${countFilters.join(' AND ')}` : ''
+      // Get values without cursor value (cursor is added after other filters)
+      const cursorValueIndex = validCursor ? values.findIndex((v) => v === validCursor) : -1
+      const countValues = cursorValueIndex >= 0 
+        ? [...values.slice(0, cursorValueIndex), ...values.slice(cursorValueIndex + 1)]
+        : values
+      
+      const countResult = await pgPool.query(
+        `SELECT COUNT(*) as total FROM "Product" ${countWhere}`,
+        countValues,
+      )
+      total = parseInt(countResult.rows[0].total, 10)
+    }
+
+    // Optimized cursor-based query using composite index (categoryId, id)
+    // Select only required columns to reduce data transfer
+    const queryValues = [...values, limit + 1] // Fetch one extra to check if there's a next page
     const productsResult = await pgPool.query(
       `
-      WITH filtered_products AS (
-        SELECT
-          id, sku, name, category, description, "technicalDescription", coding, pins,
-          "ipRating", gender, "connectorType", material, voltage, current,
-          "temperatureRange", "wireGauge", "cableLength", price, "priceType",
-          "inStock", "stockQuantity", images, documents, "datasheetUrl",
-          "createdAt", "updatedAt",
-          COUNT(*) OVER() AS total
-        FROM "Product"
-        ${whereClause}
-      )
-      SELECT * FROM filtered_products
-      ORDER BY "createdAt" DESC
-      LIMIT $${dataValues.length - 1}
-      OFFSET $${dataValues.length}
+      SELECT
+        id,
+        description,
+        mpn,
+        "categoryId",
+        "productType",
+        coupling,
+        "ipRating" as "degreeOfProtection",
+        "wireCrossSection",
+        "temperatureRange",
+        "cableDiameter",
+        "cableMantleColor",
+        "cableMantleMaterial",
+        "cableLength",
+        "glandMaterial",
+        "housingMaterial",
+        "pinContact",
+        "socketContact",
+        "cableDragChainSuitable",
+        "tighteningTorqueMax",
+        "bendingRadiusFixed",
+        "bendingRadiusRepeated",
+        "contactPlating",
+        voltage as "operatingVoltage",
+        current as "ratedCurrent",
+        "halogenFree",
+        "connectorType",
+        coding as "code",
+        "strippingForce",
+        images,
+        documents,
+        "createdAt",
+        "updatedAt"
+      FROM "Product"
+      ${whereClause}
+      ORDER BY id ASC
+      LIMIT $${queryValues.length}
       `,
-      dataValues,
+      queryValues,
     )
-    const products = productsResult.rows
-    const total: number = products.length > 0 ? parseInt(products[0].total) : 0
+
+    const products = productsResult.rows.slice(0, limit)
+    const hasNext = productsResult.rows.length > limit
+    const nextCursor = hasNext && products.length > 0 ? products[products.length - 1].id : null
+
+    const pagination: any = {
+      limit,
+      cursor: nextCursor,
+      hasNext,
+      hasPrev: validCursor !== null,
+    }
+
+    if (total !== undefined) {
+      pagination.total = total
+    }
 
     return NextResponse.json({
       products,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-        hasNext: page < Math.ceil(total / limit),
-        hasPrev: page > 1,
-      },
+      pagination,
     })
-  } catch (error) {
+  } catch (error: any) {
     log.error('Error fetching products', error)
+    
+    // Check if this is a missing column error
+    if (error?.code === '42703' && error?.message?.includes('categoryId')) {
+      return NextResponse.json(
+        { 
+          error: 'Database schema migration required',
+          message: 'The categoryId column is missing. Please run: pnpm migrate:category-id',
+          code: 'MIGRATION_REQUIRED'
+        },
+        { status: 500 }
+      )
+    }
+    
     return NextResponse.json({ error: 'Failed to fetch products' }, { status: 500 })
   }
 }
@@ -178,58 +227,76 @@ export const POST = requireAdmin(async (req: NextRequest) => {
 
     // Sanitize HTML content fields
     const sanitizedDescription = sanitizeRichText(parsed.description || '')
-    const sanitizedTechnicalDescription = parsed.technicalDescription ? sanitizeRichText(parsed.technicalDescription) : null
 
     const result = await pgPool.query(
       `
       INSERT INTO "Product" (
-        sku, name, category, description, "technicalDescription",
-        coding, pins, "ipRating", gender, "connectorType",
-        material, voltage, current, "temperatureRange",
-        "wireGauge", "cableLength", price, "priceType",
-        "inStock", "stockQuantity", images, documents, "datasheetUrl",
+        description,
+        "categoryId",
+        mpn, "productType", coupling, "ipRating",
+        "wireCrossSection", "temperatureRange", "cableDiameter",
+        "cableMantleColor", "cableMantleMaterial", "cableLength",
+        "glandMaterial", "housingMaterial", "pinContact", "socketContact",
+        "cableDragChainSuitable", "tighteningTorqueMax",
+        "bendingRadiusFixed", "bendingRadiusRepeated", "contactPlating",
+        voltage, current, "halogenFree", "connectorType", coding,
+        "strippingForce", images, documents,
         "createdAt", "updatedAt"
       )
       VALUES (
-        $1, $2, $3, $4, $5,
-        $6, $7, $8, $9, $10,
-        $11, $12, $13, $14,
-        $15, $16, $17, $18,
-        $19, $20, $21, $22, $23,
+        $1, $2, $3, $4, $5, $6,
+        $7, $8, $9,
+        $10, $11, $12,
+        $13, $14, $15, $16,
+        $17, $18,
+        $19, $20, $21,
+        $22, $23, $24, $25, $26,
+        $27, $28, $29,
         NOW(), NOW()
       )
       RETURNING
-        id, sku, name, category, description, "technicalDescription",
-        coding, pins, "ipRating", gender, "connectorType",
-        material, voltage, current, "temperatureRange",
-        "wireGauge", "cableLength", price, "priceType",
-        "inStock", "stockQuantity", images, documents, "datasheetUrl",
+        id, description,
+        "categoryId",
+        mpn, "productType", coupling, "ipRating" as "degreeOfProtection",
+        "wireCrossSection", "temperatureRange", "cableDiameter",
+        "cableMantleColor", "cableMantleMaterial", "cableLength",
+        "glandMaterial", "housingMaterial", "pinContact", "socketContact",
+        "cableDragChainSuitable", "tighteningTorqueMax",
+        "bendingRadiusFixed", "bendingRadiusRepeated", "contactPlating",
+        voltage as "operatingVoltage", current as "ratedCurrent", "halogenFree", "connectorType", coding as "code",
+        "strippingForce", images, documents,
         "createdAt", "updatedAt"
       `,
       [
-        parsed.sku,
-        parsed.name,
-        parsed.category,
         sanitizedDescription,
-        sanitizedTechnicalDescription,
-        parsed.coding,
-        parsed.pins,
-        parsed.ipRating,
-        parsed.gender,
-        parsed.connectorType,
-        parsed.specifications.material,
-        parsed.specifications.voltage,
-        parsed.specifications.current,
-        parsed.specifications.temperatureRange,
-        parsed.specifications.wireGauge ?? null,
-        parsed.specifications.cableLength ?? null,
-        parsed.price ?? null,
-        parsed.priceType,
-        parsed.inStock,
-        parsed.stockQuantity ?? null,
+        parsed.categoryId ?? null,
+        parsed.mpn ?? null,
+        parsed.productType ?? null,
+        parsed.coupling ?? null,
+        parsed.degreeOfProtection ?? null,
+        parsed.wireCrossSection ?? null,
+        parsed.temperatureRange ?? null,
+        parsed.cableDiameter ?? null,
+        parsed.cableMantleColor ?? null,
+        parsed.cableMantleMaterial ?? null,
+        parsed.cableLength ?? null,
+        parsed.glandMaterial ?? null,
+        parsed.housingMaterial ?? null,
+        parsed.pinContact ?? null,
+        parsed.socketContact ?? null,
+        parsed.cableDragChainSuitable ?? null,
+        parsed.tighteningTorqueMax ?? null,
+        parsed.bendingRadiusFixed ?? null,
+        parsed.bendingRadiusRepeated ?? null,
+        parsed.contactPlating ?? null,
+        parsed.operatingVoltage ?? null,
+        parsed.ratedCurrent ?? null,
+        parsed.halogenFree ?? null,
+        parsed.connectorType ?? null,
+        parsed.code ?? null,
+        parsed.strippingForce ?? null,
         parsed.images,
         parsed.documents ?? [],
-        parsed.datasheetUrl ?? null,
       ],
     )
 
@@ -249,6 +316,19 @@ export const POST = requireAdmin(async (req: NextRequest) => {
     }
 
     log.error('Error creating product', error)
+    
+    // Check if this is a missing column error
+    if (error?.code === '42703' && error?.message?.includes('categoryId')) {
+      return NextResponse.json(
+        { 
+          error: 'Database schema migration required',
+          message: 'The categoryId column is missing. Please run: pnpm migrate:category-id',
+          code: 'MIGRATION_REQUIRED'
+        },
+        { status: 500 }
+      )
+    }
+    
     return NextResponse.json({ error: 'Failed to create product' }, { status: 400 })
   }
 })

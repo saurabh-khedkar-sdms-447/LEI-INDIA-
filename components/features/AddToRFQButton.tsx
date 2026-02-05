@@ -28,8 +28,8 @@ export function AddToRFQButton({ product, quantity = 1 }: AddToRFQButtonProps) {
     // Add item to RFQ
     addItem({
       productId: product.id,
-      sku: product.sku,
-      name: product.name,
+      sku: product.mpn || product.id,
+      name: product.description.substring(0, 50) || product.mpn || product.id,
       quantity,
     })
   }

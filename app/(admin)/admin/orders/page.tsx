@@ -57,6 +57,7 @@ export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -77,17 +78,27 @@ export default function AdminOrdersPage() {
 
   const fetchOrders = async () => {
     try {
+      setIsLoading(true)
+      setError(null)
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || ''}/api/orders`,
       )
 
-      if (!response.ok) throw new Error('Failed to fetch orders')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to fetch orders' }))
+        throw new Error(errorData.error || `Failed to fetch orders: ${response.statusText}`)
+      }
 
       const data = await response.json()
-      setOrders(data)
-      setFilteredOrders(data)
-    } catch {
-      // Leave orders empty on failure; UI already reflects lack of data.
+      // Handle both paginated response { orders: [...], pagination: {...} } and direct array
+      const ordersArray = Array.isArray(data) ? data : (data.orders || [])
+      setOrders(ordersArray)
+      setFilteredOrders(ordersArray)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load orders. Please refresh the page or try again later.'
+      setError(errorMessage)
+      setOrders([])
+      setFilteredOrders([])
     } finally {
       setIsLoading(false)
     }
@@ -143,6 +154,36 @@ export default function AdminOrdersPage() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
+
+  if (error && orders.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Orders</h1>
+            <p className="text-gray-600 mt-2">Manage customer orders</p>
+          </div>
+        </div>
+        <Card>
+          <CardContent className="p-6">
+            <div className="text-center py-8">
+              <div className="p-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md max-w-md mx-auto">
+                {error}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fetchOrders()}
+                  className="mt-4"
+                >
+                  Retry
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     )
   }

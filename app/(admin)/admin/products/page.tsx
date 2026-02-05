@@ -40,38 +40,45 @@ import {
   FileText,
 } from 'lucide-react'
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog'
+import { Checkbox } from '@/components/ui/checkbox'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { apiClient } from '@/lib/api-client'
 
 const productSchema = z.object({
-  sku: z.string().min(1, 'SKU is required'),
-  name: z.string().min(1, 'Name is required'),
-  category: z.string().min(1, 'Category is required'),
+  mpn: z.string().optional(),
   description: z.string().min(1, 'Description is required'),
-  technicalDescription: z.string().optional(),
-  coding: z.enum(['A', 'B', 'D', 'X']),
-  pins: z.number().min(3).max(12),
-  ipRating: z.enum(['IP67', 'IP68', 'IP20']),
-  gender: z.enum(['Male', 'Female']),
-  connectorType: z.enum(['M12', 'M8', 'RJ45']),
-  'specifications.material': z.string().optional(),
-  'specifications.voltage': z.string().optional(),
-  'specifications.current': z.string().optional(),
-  'specifications.temperatureRange': z.string().optional(),
-  'specifications.wireGauge': z.string().optional(),
-  'specifications.cableLength': z.string().optional(),
-  price: z.number().optional(),
-  priceType: z.enum(['fixed', 'quote']),
-  inStock: z.boolean(),
-  stockQuantity: z.number().optional(),
+  productType: z.string().optional(),
+  coupling: z.string().optional(),
+  degreeOfProtection: z.enum(['IP67', 'IP68', 'IP20']).optional(),
+  wireCrossSection: z.string().optional(),
+  temperatureRange: z.string().optional(),
+  cableDiameter: z.string().optional(),
+  cableMantleColor: z.string().optional(),
+  cableMantleMaterial: z.string().optional(),
+  cableLength: z.string().optional(),
+  glandMaterial: z.string().optional(),
+  housingMaterial: z.string().optional(),
+  pinContact: z.string().optional(),
+  socketContact: z.string().optional(),
+  cableDragChainSuitable: z.boolean().optional(),
+  tighteningTorqueMax: z.string().optional(),
+  bendingRadiusFixed: z.string().optional(),
+  bendingRadiusRepeated: z.string().optional(),
+  contactPlating: z.string().optional(),
+  operatingVoltage: z.string().optional(),
+  ratedCurrent: z.string().optional(),
+  halogenFree: z.boolean().optional(),
+  connectorType: z.enum(['M12', 'M8', 'RJ45']).optional(),
+  code: z.enum(['A', 'B', 'D', 'X']).optional(),
+  strippingForce: z.string().optional(),
   images: z.array(z.string()).optional(),
   documents: z.array(z.object({
     url: z.string(),
     filename: z.string(),
     size: z.number().optional(),
   })).optional(),
-  datasheetUrl: z.string().optional(),
 })
 
 type ProductFormData = z.infer<typeof productSchema>
@@ -101,8 +108,6 @@ export default function AdminProductsPage() {
   } = useForm<ProductFormData>({
     resolver: zodResolver(productSchema),
     defaultValues: {
-      priceType: 'quote',
-      inStock: true,
       images: [],
       documents: [],
     },
@@ -117,16 +122,9 @@ export default function AdminProductsPage() {
       setIsLoading(true)
       setError(null)
       // Fetch all products for admin (use high limit to get all)
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || ''}/api/products?limit=10000`,
+      const data = await apiClient.get<{ products: Product[]; pagination?: any } | Product[]>(
+        '/api/products?limit=10000',
       )
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Failed to fetch products' }))
-        throw new Error(errorData.error || `Failed to fetch products: ${response.statusText}`)
-      }
-      
-      const data = await response.json()
       // Handle both paginated and non-paginated responses
       setProducts(Array.isArray(data) ? data : (data.products || []))
     } catch (error) {
@@ -160,10 +158,12 @@ export default function AdminProductsPage() {
       const formData = new FormData()
       formData.append('image', file)
 
+      // Use fetch directly for FormData (apiClient doesn't handle FormData well)
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || ''}/api/admin/upload`,
         {
           method: 'POST',
+          credentials: 'include',
           body: formData,
         }
       )
@@ -220,10 +220,12 @@ export default function AdminProductsPage() {
       formData.append('document', file)
       formData.append('type', 'document')
 
+      // Use fetch directly for FormData (apiClient doesn't handle FormData well)
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || ''}/api/admin/upload`,
         {
           method: 'POST',
+          credentials: 'include',
           body: formData,
         }
       )
@@ -260,8 +262,6 @@ export default function AdminProductsPage() {
     setProductImages([])
     setProductDocuments([])
     reset({
-      priceType: 'quote',
-      inStock: true,
       images: [],
       documents: [],
     })
@@ -273,14 +273,33 @@ export default function AdminProductsPage() {
     setProductImages(product.images || [])
     setProductDocuments(product.documents || [])
     reset({
-      ...product,
-      pins: product.pins as any,
-      'specifications.material': product.specifications.material,
-      'specifications.voltage': product.specifications.voltage,
-      'specifications.current': product.specifications.current,
-      'specifications.temperatureRange': product.specifications.temperatureRange,
-      'specifications.wireGauge': product.specifications.wireGauge,
-      'specifications.cableLength': product.specifications.cableLength,
+      mpn: product.mpn || '',
+      description: product.description || '',
+      productType: product.productType || '',
+      coupling: product.coupling || '',
+      degreeOfProtection: product.degreeOfProtection || undefined,
+      wireCrossSection: product.wireCrossSection || '',
+      temperatureRange: product.temperatureRange || '',
+      cableDiameter: product.cableDiameter || '',
+      cableMantleColor: product.cableMantleColor || '',
+      cableMantleMaterial: product.cableMantleMaterial || '',
+      cableLength: product.cableLength || '',
+      glandMaterial: product.glandMaterial || '',
+      housingMaterial: product.housingMaterial || '',
+      pinContact: product.pinContact || '',
+      socketContact: product.socketContact || '',
+      cableDragChainSuitable: product.cableDragChainSuitable ?? false,
+      tighteningTorqueMax: product.tighteningTorqueMax || '',
+      bendingRadiusFixed: product.bendingRadiusFixed || '',
+      bendingRadiusRepeated: product.bendingRadiusRepeated || '',
+      contactPlating: product.contactPlating || '',
+      operatingVoltage: product.operatingVoltage || '',
+      ratedCurrent: product.ratedCurrent || '',
+      halogenFree: product.halogenFree ?? false,
+      connectorType: product.connectorType || undefined,
+      code: product.code || undefined,
+      strippingForce: product.strippingForce || '',
+      images: product.images || [],
       documents: product.documents || [],
     })
     setIsDialogOpen(true)
@@ -295,35 +314,25 @@ export default function AdminProductsPage() {
     try {
       const productData = {
         ...data,
-        specifications: {
-          material: data['specifications.material'] || '',
-          voltage: data['specifications.voltage'] || '',
-          current: data['specifications.current'] || '',
-          temperatureRange: data['specifications.temperatureRange'] || '',
-          wireGauge: data['specifications.wireGauge'],
-          cableLength: data['specifications.cableLength'],
-        },
         images: productImages,
         documents: productDocuments,
       }
 
-      const url = editingProduct
-        ? `${process.env.NEXT_PUBLIC_API_URL || ''}/api/products/${editingProduct.id}`
-        : `${process.env.NEXT_PUBLIC_API_URL || ''}/api/products`
+      // Get CSRF token for state-changing operations
+      const csrfToken = await apiClient.getCsrfToken()
 
-      const method = editingProduct ? 'PUT' : 'POST'
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(productData),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Failed to save product' }))
-        throw new Error(errorData.error || errorData.details?.[0]?.message || 'Failed to save product')
+      if (editingProduct) {
+        await apiClient.put(`/api/products/${editingProduct.id}`, productData, {
+          headers: {
+            'X-CSRF-Token': csrfToken,
+          },
+        })
+      } else {
+        await apiClient.post('/api/products', productData, {
+          headers: {
+            'X-CSRF-Token': csrfToken,
+          },
+        })
       }
 
       setIsDialogOpen(false)
@@ -352,17 +361,15 @@ export default function AdminProductsPage() {
     try {
       setIsDeleting(true)
       setError(null)
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || ''}/api/products/${productToDelete}`,
-        {
-          method: 'DELETE',
-        }
-      )
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Failed to delete product' }))
-        throw new Error(errorData.error || 'Failed to delete product')
-      }
+      
+      // Get CSRF token for state-changing operations
+      const csrfToken = await apiClient.getCsrfToken()
+      
+      await apiClient.delete(`/api/products/${productToDelete}`, {
+        headers: {
+          'X-CSRF-Token': csrfToken,
+        },
+      })
 
       setDeleteDialogOpen(false)
       setProductToDelete(null)
@@ -416,48 +423,34 @@ export default function AdminProductsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>SKU</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Stock</TableHead>
-                <TableHead>Price</TableHead>
+                <TableHead>MPN</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Product Type</TableHead>
+                <TableHead>Connector Type</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {products.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                  <TableCell colSpan={5} className="text-center py-8 text-gray-500">
                     No products found
                   </TableCell>
                 </TableRow>
               ) : (
                 products.map((product) => (
                   <TableRow key={product.id}>
-                    <TableCell className="font-medium">{product.sku}</TableCell>
-                    <TableCell>{product.name}</TableCell>
-                    <TableCell>{product.category}</TableCell>
-                    <TableCell>{product.connectorType}</TableCell>
-                    <TableCell>
-                      {product.inStock ? (
-                        <span className="text-green-600">In Stock</span>
-                      ) : (
-                        <span className="text-red-600">Out of Stock</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {product.priceType === 'fixed' && product.price
-                        ? `$${product.price}`
-                        : 'Quote'}
-                    </TableCell>
+                    <TableCell className="font-medium">{product.mpn || 'N/A'}</TableCell>
+                    <TableCell className="max-w-md truncate">{product.description}</TableCell>
+                    <TableCell>{product.productType || 'N/A'}</TableCell>
+                    <TableCell>{product.connectorType || 'N/A'}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end space-x-2">
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => openEditDialog(product)}
-                          aria-label={`Edit product ${product.name}`}
+                          aria-label={`Edit product ${product.mpn || product.id}`}
                         >
                           <Edit className="h-4 w-4" aria-hidden="true" />
                         </Button>
@@ -465,7 +458,7 @@ export default function AdminProductsPage() {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleDeleteClick(product.id)}
-                          aria-label={`Delete product ${product.name}`}
+                          aria-label={`Delete product ${product.mpn || product.id}`}
                         >
                           <Trash2 className="h-4 w-4 text-red-500" aria-hidden="true" />
                         </Button>
@@ -494,32 +487,6 @@ export default function AdminProductsPage() {
           </DialogHeader>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="sku">SKU *</Label>
-                <Input id="sku" {...register('sku')} />
-                {errors.sku && (
-                  <p className="text-sm text-red-500">{errors.sku.message}</p>
-                )}
-              </div>
-
-              <div>
-                <Label htmlFor="name">Name *</Label>
-                <Input id="name" {...register('name')} />
-                {errors.name && (
-                  <p className="text-sm text-red-500">{errors.name.message}</p>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="category">Category *</Label>
-              <Input id="category" {...register('category')} />
-              {errors.category && (
-                <p className="text-sm text-red-500">{errors.category.message}</p>
-              )}
-            </div>
-
             <div>
               <Label htmlFor="description">Description *</Label>
               <textarea
@@ -533,15 +500,144 @@ export default function AdminProductsPage() {
               )}
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="coding">Coding *</Label>
+                <Label htmlFor="mpn">MPN</Label>
+                <Input id="mpn" {...register('mpn')} placeholder="Manufacturer part number" />
+              </div>
+
+              <div>
+                <Label htmlFor="productType">Product Type</Label>
+                <Input id="productType" {...register('productType')} placeholder="Product type" />
+              </div>
+
+              <div>
+                <Label htmlFor="coupling">Coupling</Label>
+                <Input id="coupling" {...register('coupling')} placeholder="Coupling type" />
+              </div>
+
+              <div>
+                <Label htmlFor="degreeOfProtection">Degree of Protection</Label>
                 <Select
-                  onValueChange={(value) => setValue('coding', value as any)}
-                  defaultValue={watch('coding')}
+                  onValueChange={(value) => setValue('degreeOfProtection', value as any)}
+                  value={watch('degreeOfProtection') || ''}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select coding" />
+                    <SelectValue placeholder="Select degree of protection" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="IP67">IP67</SelectItem>
+                    <SelectItem value="IP68">IP68</SelectItem>
+                    <SelectItem value="IP20">IP20</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="wireCrossSection">Wire Cross Section</Label>
+                <Input id="wireCrossSection" {...register('wireCrossSection')} placeholder="e.g., 0.5 mm²" />
+              </div>
+
+              <div>
+                <Label htmlFor="temperatureRange">Temperature Range</Label>
+                <Input id="temperatureRange" {...register('temperatureRange')} placeholder="e.g., -25°C to +85°C" />
+              </div>
+
+              <div>
+                <Label htmlFor="cableDiameter">Cable Diameter</Label>
+                <Input id="cableDiameter" {...register('cableDiameter')} placeholder="e.g., 6.5 mm" />
+              </div>
+
+              <div>
+                <Label htmlFor="cableMantleColor">Color of Cable Mantle</Label>
+                <Input id="cableMantleColor" {...register('cableMantleColor')} placeholder="e.g., Black, Gray" />
+              </div>
+
+              <div>
+                <Label htmlFor="cableMantleMaterial">Material of Cable Mantle</Label>
+                <Input id="cableMantleMaterial" {...register('cableMantleMaterial')} placeholder="Cable mantle material" />
+              </div>
+
+              <div>
+                <Label htmlFor="cableLength">Cable Length</Label>
+                <Input id="cableLength" {...register('cableLength')} placeholder="e.g., 1m, 2m" />
+              </div>
+
+              <div>
+                <Label htmlFor="glandMaterial">Material of Gland</Label>
+                <Input id="glandMaterial" {...register('glandMaterial')} placeholder="Gland material" />
+              </div>
+
+              <div>
+                <Label htmlFor="housingMaterial">Housing Material</Label>
+                <Input id="housingMaterial" {...register('housingMaterial')} placeholder="Housing material" />
+              </div>
+
+              <div>
+                <Label htmlFor="pinContact">Pin Contact</Label>
+                <Input id="pinContact" {...register('pinContact')} placeholder="Pin contact specification" />
+              </div>
+
+              <div>
+                <Label htmlFor="socketContact">Socket Contact</Label>
+                <Input id="socketContact" {...register('socketContact')} placeholder="Socket contact specification" />
+              </div>
+
+              <div>
+                <Label htmlFor="tighteningTorqueMax">Tightening Torque Maximum</Label>
+                <Input id="tighteningTorqueMax" {...register('tighteningTorqueMax')} placeholder="e.g., 0.4 Nm" />
+              </div>
+
+              <div>
+                <Label htmlFor="bendingRadiusFixed">Bending Radius (Fixed)</Label>
+                <Input id="bendingRadiusFixed" {...register('bendingRadiusFixed')} placeholder="e.g., 20 mm" />
+              </div>
+
+              <div>
+                <Label htmlFor="bendingRadiusRepeated">Bending Radius (Repeated)</Label>
+                <Input id="bendingRadiusRepeated" {...register('bendingRadiusRepeated')} placeholder="e.g., 15 mm" />
+              </div>
+
+              <div>
+                <Label htmlFor="contactPlating">Contact Plating</Label>
+                <Input id="contactPlating" {...register('contactPlating')} placeholder="e.g., Gold, Silver" />
+              </div>
+
+              <div>
+                <Label htmlFor="operatingVoltage">Operating Voltage</Label>
+                <Input id="operatingVoltage" {...register('operatingVoltage')} placeholder="e.g., 250V AC" />
+              </div>
+
+              <div>
+                <Label htmlFor="ratedCurrent">Rated Current</Label>
+                <Input id="ratedCurrent" {...register('ratedCurrent')} placeholder="e.g., 4A" />
+              </div>
+
+              <div>
+                <Label htmlFor="connectorType">Connector Type</Label>
+                <Select
+                  onValueChange={(value) => setValue('connectorType', value as any)}
+                  value={watch('connectorType') || ''}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select connector type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="M12">M12</SelectItem>
+                    <SelectItem value="M8">M8</SelectItem>
+                    <SelectItem value="RJ45">RJ45</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="code">Code</Label>
+                <Select
+                  onValueChange={(value) => setValue('code', value as any)}
+                  value={watch('code') || ''}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select code" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="A">A</SelectItem>
@@ -553,124 +649,38 @@ export default function AdminProductsPage() {
               </div>
 
               <div>
-                <Label htmlFor="pins">Pins *</Label>
-                <Input
-                  id="pins"
-                  type="number"
-                  {...register('pins', { valueAsNumber: true })}
+                <Label htmlFor="strippingForce">Stripping Force</Label>
+                <Input id="strippingForce" {...register('strippingForce')} placeholder="Stripping force specification" />
+              </div>
+            </div>
+
+            {/* Boolean Specifications */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="cableDragChainSuitable"
+                  checked={watch('cableDragChainSuitable') || false}
+                  onCheckedChange={(checked) => {
+                    setValue('cableDragChainSuitable', checked === true, { shouldValidate: true })
+                  }}
                 />
+                <Label htmlFor="cableDragChainSuitable" className="cursor-pointer">
+                  Cable Drag Chain Suitable
+                </Label>
               </div>
 
-              <div>
-                <Label htmlFor="ipRating">IP Rating *</Label>
-                <Select
-                  onValueChange={(value) => setValue('ipRating', value as any)}
-                  defaultValue={watch('ipRating')}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select IP rating" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="IP67">IP67</SelectItem>
-                    <SelectItem value="IP68">IP68</SelectItem>
-                    <SelectItem value="IP20">IP20</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="halogenFree"
+                  checked={watch('halogenFree') || false}
+                  onCheckedChange={(checked) => {
+                    setValue('halogenFree', checked === true, { shouldValidate: true })
+                  }}
+                />
+                <Label htmlFor="halogenFree" className="cursor-pointer">
+                  Halogen Free
+                </Label>
               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="gender">Gender *</Label>
-                <Select
-                  onValueChange={(value) => setValue('gender', value as any)}
-                  defaultValue={watch('gender')}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select gender" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Male">Male</SelectItem>
-                    <SelectItem value="Female">Female</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="connectorType">Connector Type *</Label>
-                <Select
-                  onValueChange={(value) => setValue('connectorType', value as any)}
-                  defaultValue={watch('connectorType')}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="M12">M12</SelectItem>
-                    <SelectItem value="M8">M8</SelectItem>
-                    <SelectItem value="RJ45">RJ45</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="priceType">Price Type *</Label>
-                <Select
-                  onValueChange={(value) => setValue('priceType', value as any)}
-                  defaultValue={watch('priceType')}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="fixed">Fixed Price</SelectItem>
-                    <SelectItem value="quote">Quote Required</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {watch('priceType') === 'fixed' && (
-                <div>
-                  <Label htmlFor="price">Price</Label>
-                  <Input
-                    id="price"
-                    type="number"
-                    step="0.01"
-                    {...register('price', { valueAsNumber: true })}
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="inStock">Stock Status</Label>
-                <Select
-                  onValueChange={(value) => setValue('inStock', value === 'true')}
-                  defaultValue={watch('inStock')?.toString()}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="true">In Stock</SelectItem>
-                    <SelectItem value="false">Out of Stock</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {watch('inStock') && (
-                <div>
-                  <Label htmlFor="stockQuantity">Stock Quantity</Label>
-                  <Input
-                    id="stockQuantity"
-                    type="number"
-                    {...register('stockQuantity', { valueAsNumber: true })}
-                  />
-                </div>
-              )}
             </div>
 
             <div>

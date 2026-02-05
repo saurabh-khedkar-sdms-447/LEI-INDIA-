@@ -132,6 +132,46 @@ class ApiClient {
     })
     return this.handleResponse<T>(response)
   }
+
+  async put<T>(endpoint: string, data?: any, options: RequestOptions = {}): Promise<T> {
+    const url = `${this.baseUrl}${endpoint}`
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    }
+
+    const response = await this.fetchWithTimeout(url, {
+      ...options,
+      method: 'PUT',
+      credentials: 'include',
+      headers,
+      body: data ? JSON.stringify(data) : undefined,
+    })
+    return this.handleResponse<T>(response)
+  }
+
+  async delete<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
+    const url = `${this.baseUrl}${endpoint}`
+    const headers: HeadersInit = {
+      ...(options.headers || {}),
+    }
+
+    const response = await this.fetchWithTimeout(url, {
+      ...options,
+      method: 'DELETE',
+      credentials: 'include',
+      headers,
+    })
+    return this.handleResponse<T>(response)
+  }
+
+  /**
+   * Get CSRF token for state-changing operations
+   */
+  async getCsrfToken(): Promise<string> {
+    const data = await this.get<{ csrfToken: string }>('/api/csrf-token')
+    return data.csrfToken
+  }
 }
 
 export const apiClient = new ApiClient()

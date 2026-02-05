@@ -70,7 +70,7 @@ export async function GET(_req: NextRequest) {
     
     // Log full error for debugging
     if (process.env.NODE_ENV === 'development') {
-      console.error('Full error object:', {
+      log.error('Contact info fetch error details', {
         message: errorMessage,
         code: errorCode,
         detail: errorDetails,

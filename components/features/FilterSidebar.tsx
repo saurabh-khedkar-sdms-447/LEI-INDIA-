@@ -1,12 +1,12 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useProductFilters } from '@/hooks/use-product-filters'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { ConnectorType, ConnectorCoding, PinCount, IPRating, ConnectorGender } from '@/types'
-import { categories } from '@/lib/data'
+import { ConnectorType, ConnectorCoding, PinCount, IPRating, ConnectorGender, Category } from '@/types'
 
 const connectorTypes: ConnectorType[] = ['M12', 'M8', 'RJ45']
 const codings: ConnectorCoding[] = ['A', 'B', 'D', 'X']
@@ -16,6 +16,83 @@ const genders: ConnectorGender[] = ['Male', 'Female']
 
 export function FilterSidebar() {
   const { filters, updateFilters, clearFilters } = useProductFilters()
+  const [categories, setCategories] = useState<Category[]>([])
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true)
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || window.location.origin
+        const response = await fetch(`${baseUrl}/api/categories?limit=1000`)
+        if (response.ok) {
+          const data = await response.json()
+          setCategories(Array.isArray(data) ? data : (data.categories || []))
+        }
+      } catch (error) {
+        // Error handled silently - categories are optional for filtering
+      } finally {
+        setIsLoadingCategories(false)
+      }
+    }
+    fetchCategories()
+  }, [])
+
+  // Build hierarchical category structure
+  const buildCategoryTree = () => {
+    const categoryMap = new Map<string, Category>()
+    const rootCategories: Category[] = []
+
+    // Build map
+    categories.forEach(cat => {
+      categoryMap.set(cat.id, { ...cat, children: [] })
+    })
+
+    // Build hierarchy
+    categories.forEach(cat => {
+      const category = categoryMap.get(cat.id)!
+      if (cat.parentId) {
+        const parent = categoryMap.get(cat.parentId)
+        if (parent) {
+          if (!parent.children) parent.children = []
+          parent.children.push(category)
+        }
+      } else {
+        rootCategories.push(category)
+      }
+    })
+
+    return rootCategories
+  }
+
+  const renderCategoryTree = (cats: Category[], level = 0) => {
+    return cats.map((category) => (
+      <div key={category.id} className={level > 0 ? 'ml-4' : ''}>
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id={`category-${category.id}`}
+            checked={filters.categoryId === category.id || false}
+            onCheckedChange={(checked) =>
+              updateFilters({
+                categoryId: checked ? category.id : undefined,
+                category: undefined, // Clear slug when using categoryId
+              })
+            }
+          />
+          <Label
+            htmlFor={`category-${category.id}`}
+            className="text-sm font-normal cursor-pointer"
+          >
+            {category.name}
+          </Label>
+        </div>
+        {category.children && category.children.length > 0 && (
+          <div className="mt-1 space-y-1">
+            {renderCategoryTree(category.children, level + 1)}
+          </div>
+        )}
+      </div>
+    ))
+  }
 
   const handleFilterChange = (
     filterKey: keyof typeof filters,
@@ -61,27 +138,13 @@ export function FilterSidebar() {
           {/* Category */}
           <div>
             <Label className="text-sm font-semibold mb-3 block">Category</Label>
-            <div className="space-y-2">
-              {categories.map((category) => (
-                <div key={category.id} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`category-${category.id}`}
-                    checked={filters.category === category.slug || false}
-                    onCheckedChange={(checked) =>
-                      updateFilters({
-                        category: checked ? category.slug : undefined,
-                      })
-                    }
-                  />
-                  <Label
-                    htmlFor={`category-${category.id}`}
-                    className="text-sm font-normal cursor-pointer"
-                  >
-                    {category.name}
-                  </Label>
-                </div>
-              ))}
-            </div>
+            {isLoadingCategories ? (
+              <div className="text-sm text-gray-500">Loading categories...</div>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {renderCategoryTree(buildCategoryTree())}
+              </div>
+            )}
           </div>
 
           {/* Connector Type */}

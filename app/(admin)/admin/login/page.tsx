@@ -38,11 +38,17 @@ export default function AdminLoginPage() {
   useEffect(() => {
     // Check if already authenticated
     if (isAuthenticated) {
-      verifyToken().then((isValid) => {
-        if (isValid) {
-          router.push('/admin')
+      const checkAuth = async () => {
+        try {
+          const isValid = await verifyToken()
+          if (isValid) {
+            router.push('/admin')
+          }
+        } catch {
+          // Token verification failed, stay on login page
         }
-      })
+      }
+      checkAuth()
     }
   }, [isAuthenticated, router, verifyToken])
 

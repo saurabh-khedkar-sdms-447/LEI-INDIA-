@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS "Product" (
   sku TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
   category TEXT,
+  "categoryId" UUID REFERENCES "Category"(id) ON DELETE SET NULL,
   description TEXT,
   "technicalDescription" TEXT,
   coding TEXT,
@@ -72,6 +73,25 @@ CREATE TABLE IF NOT EXISTS "Product" (
   images JSONB NOT NULL DEFAULT '[]'::jsonb,
   documents JSONB NOT NULL DEFAULT '[]'::jsonb,
   "datasheetUrl" TEXT,
+  -- Extended product specifications
+  mpn TEXT,
+  "productType" TEXT,
+  coupling TEXT,
+  "wireCrossSection" TEXT,
+  "cableDiameter" TEXT,
+  "cableMantleColor" TEXT,
+  "cableMantleMaterial" TEXT,
+  "glandMaterial" TEXT,
+  "housingMaterial" TEXT,
+  "pinContact" TEXT,
+  "socketContact" TEXT,
+  "cableDragChainSuitable" BOOLEAN,
+  "tighteningTorqueMax" TEXT,
+  "bendingRadiusFixed" TEXT,
+  "bendingRadiusRepeated" TEXT,
+  "contactPlating" TEXT,
+  "halogenFree" BOOLEAN,
+  "strippingForce" TEXT,
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -189,6 +209,8 @@ CREATE INDEX IF NOT EXISTS idx_user_email ON "User"(email);
 CREATE INDEX IF NOT EXISTS idx_user_is_active ON "User"("isActive");
 CREATE INDEX IF NOT EXISTS idx_product_sku ON "Product"(sku);
 CREATE INDEX IF NOT EXISTS idx_product_category ON "Product"(category);
+CREATE INDEX IF NOT EXISTS idx_product_categoryid ON "Product"("categoryId");
+CREATE INDEX IF NOT EXISTS idx_product_categoryid_id ON "Product"("categoryId", id);
 CREATE INDEX IF NOT EXISTS idx_product_in_stock ON "Product"("inStock");
 CREATE INDEX IF NOT EXISTS idx_product_connector_type ON "Product"("connectorType");
 CREATE INDEX IF NOT EXISTS idx_product_coding ON "Product"(coding);

@@ -43,13 +43,11 @@ export function HeroSlider() {
         } else {
           const errorData = await response.json().catch(() => ({}))
           const errorMessage = errorData.error || `Failed to fetch hero slides: ${response.status} ${response.statusText}`
-          console.error('Failed to fetch hero slides:', response.status, response.statusText, errorData)
           setError(errorMessage)
           setSlides([])
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to fetch hero slides'
-        console.error('Failed to fetch hero slides:', error)
         setError(errorMessage)
         setSlides([])
       } finally {

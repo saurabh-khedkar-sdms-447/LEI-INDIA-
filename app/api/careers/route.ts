@@ -43,31 +43,31 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10) || 20))
     const offset = (page - 1) * limit
 
-    const countResult = await pgPool.query(
-      `
-      SELECT COUNT(*)::int AS total
-      FROM "Career"
-      ${isAdmin ? '' : 'WHERE active = true'}
-      `,
-    )
-    const total: number = countResult.rows[0]?.total ?? 0
-
+    // Optimized: Single query with window function
+    const whereClause = isAdmin ? '' : 'WHERE active = true'
     const result = await pgPool.query(
       `
-      SELECT id, title, slug, department, location, type, description,
-             requirements, responsibilities, benefits, salary, active,
-             "createdAt", "updatedAt"
-      FROM "Career"
-      ${isAdmin ? '' : 'WHERE active = true'}
+      WITH filtered_careers AS (
+        SELECT 
+          id, title, slug, department, location, type, description,
+          requirements, responsibilities, benefits, salary, active,
+          "createdAt", "updatedAt",
+          COUNT(*) OVER() AS total
+        FROM "Career"
+        ${whereClause}
+      )
+      SELECT * FROM filtered_careers
       ORDER BY "createdAt" DESC
       LIMIT $1
       OFFSET $2
       `,
       [limit, offset],
     )
+    const careers = result.rows
+    const total: number = careers.length > 0 ? parseInt(careers[0].total) : 0
 
     return NextResponse.json({
-      careers: result.rows,
+      careers: careers.map(({ total, ...career }) => career), // Remove total from each row
       pagination: {
         page,
         limit,
