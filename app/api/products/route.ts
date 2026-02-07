@@ -159,6 +159,8 @@ export async function GET(req: NextRequest) {
         "strippingForce",
         images,
         documents,
+        "datasheetUrl",
+        "drawingUrl",
         "createdAt",
         "updatedAt"
       FROM "Product"
@@ -240,7 +242,7 @@ export const POST = requireAdmin(async (req: NextRequest) => {
         "cableDragChainSuitable", "tighteningTorqueMax",
         "bendingRadiusFixed", "bendingRadiusRepeated", "contactPlating",
         voltage, current, "halogenFree", "connectorType", coding,
-        "strippingForce", images, documents,
+        "strippingForce", images, documents, "datasheetUrl", "drawingUrl",
         "createdAt", "updatedAt"
       )
       VALUES (
@@ -251,7 +253,7 @@ export const POST = requireAdmin(async (req: NextRequest) => {
         $17, $18,
         $19, $20, $21,
         $22, $23, $24, $25, $26,
-        $27, $28, $29,
+        $27, $28, $29, $30, $31,
         NOW(), NOW()
       )
       RETURNING
@@ -264,7 +266,7 @@ export const POST = requireAdmin(async (req: NextRequest) => {
         "cableDragChainSuitable", "tighteningTorqueMax",
         "bendingRadiusFixed", "bendingRadiusRepeated", "contactPlating",
         voltage as "operatingVoltage", current as "ratedCurrent", "halogenFree", "connectorType", coding as "code",
-        "strippingForce", images, documents,
+        "strippingForce", images, documents, "datasheetUrl", "drawingUrl",
         "createdAt", "updatedAt"
       `,
       [
@@ -297,6 +299,8 @@ export const POST = requireAdmin(async (req: NextRequest) => {
         parsed.strippingForce ?? null,
         parsed.images,
         parsed.documents ?? [],
+        parsed.datasheetUrl ?? null,
+        parsed.drawingUrl ?? null,
       ],
     )
 

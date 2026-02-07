@@ -57,6 +57,8 @@ export async function GET(
         p."strippingForce",
         p.images,
         p.documents,
+        p."datasheetUrl",
+        p."drawingUrl",
         p."createdAt",
         p."updatedAt"
       FROM "Product" p
@@ -129,7 +131,7 @@ export async function PUT(
         "cableDragChainSuitable", "tighteningTorqueMax",
         "bendingRadiusFixed", "bendingRadiusRepeated", "contactPlating",
         voltage, current, "halogenFree", "connectorType", coding,
-        "strippingForce", images, documents
+        "strippingForce", images, documents, "datasheetUrl", "drawingUrl"
       FROM "Product"
       WHERE id = $1
       `,
@@ -178,8 +180,10 @@ export async function PUT(
         "strippingForce" = $27,
         images = $28,
         documents = $29,
+        "datasheetUrl" = $30,
+        "drawingUrl" = $31,
         "updatedAt" = NOW()
-      WHERE id = $30
+      WHERE id = $32
       RETURNING
         id, description,
         "categoryId",
@@ -190,7 +194,7 @@ export async function PUT(
         "cableDragChainSuitable", "tighteningTorqueMax",
         "bendingRadiusFixed", "bendingRadiusRepeated", "contactPlating",
         voltage as "operatingVoltage", current as "ratedCurrent", "halogenFree", "connectorType", coding as "code",
-        "strippingForce", images, documents,
+        "strippingForce", images, documents, "datasheetUrl", "drawingUrl",
         "createdAt", "updatedAt"
       `,
       [
@@ -223,6 +227,8 @@ export async function PUT(
         parsed.strippingForce !== undefined ? parsed.strippingForce ?? null : existing.strippingForce,
         parsed.images !== undefined ? parsed.images : existing.images,
         parsed.documents !== undefined ? parsed.documents : (existing.documents || []),
+        parsed.datasheetUrl !== undefined ? parsed.datasheetUrl ?? null : existing.datasheetUrl,
+        parsed.drawingUrl !== undefined ? parsed.drawingUrl ?? null : existing.drawingUrl,
         params.id,
       ],
     )

@@ -12,6 +12,7 @@
     "lint": "next lint",
     "check:console-logs": "node scripts/replace-console-logs.mjs",
     "migrate:category-id": "npx --yes tsx scripts/run-migration.ts",
+    "migrate:drawing-url": "npx --yes tsx scripts/run-drawing-url-migration.ts",
     "seed:categories-products": "npx --yes tsx scripts/seed-categories-products.ts"
   },
   "workspaces": [],

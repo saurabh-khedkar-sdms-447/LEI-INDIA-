@@ -39,6 +39,8 @@ export interface Product {
     filename: string
     size?: number
   }>
+  datasheetUrl?: string
+  drawingUrl?: string
   createdAt: string
   updatedAt: string
 }

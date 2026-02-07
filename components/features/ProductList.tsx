@@ -36,8 +36,29 @@ export function ProductList() {
       const params = new URLSearchParams()
       
       // Build filter params
+      // Handle both categoryId (UUID) and category (slug)
       const categoryId = searchParams.get('categoryId')
-      if (categoryId) params.set('categoryId', categoryId)
+      const categorySlug = searchParams.get('category')
+      
+      // If categoryId is provided, use it directly
+      if (categoryId) {
+        params.set('categoryId', categoryId)
+      } else if (categorySlug) {
+        // If only category slug is provided, fetch categoryId from API
+        try {
+          const categoryResponse = await fetch(`/api/categories?limit=1000`)
+          if (categoryResponse.ok) {
+            const categoryData = await categoryResponse.json()
+            const categories = Array.isArray(categoryData.categories) ? categoryData.categories : []
+            const category = categories.find((c: any) => c.slug === categorySlug)
+            if (category?.id) {
+              params.set('categoryId', category.id)
+            }
+          }
+        } catch (err) {
+          console.error('Failed to fetch category by slug', err)
+        }
+      }
       
       const connectorType = searchParams.get('connectorType')
       if (connectorType) params.set('connectorType', connectorType)

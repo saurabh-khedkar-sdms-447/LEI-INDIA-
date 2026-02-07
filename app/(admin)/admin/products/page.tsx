@@ -29,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Product } from '@/types'
+import { Product, Category } from '@/types'
 import {
   Plus,
   Edit,
@@ -73,12 +73,15 @@ const productSchema = z.object({
   connectorType: z.enum(['M12', 'M8', 'RJ45']).optional(),
   code: z.enum(['A', 'B', 'D', 'X']).optional(),
   strippingForce: z.string().optional(),
+  categoryId: z.string().uuid().optional(),
   images: z.array(z.string()).optional(),
   documents: z.array(z.object({
     url: z.string(),
     filename: z.string(),
     size: z.number().optional(),
   })).optional(),
+  datasheetUrl: z.string().optional(),
+  drawingUrl: z.string().optional(),
 })
 
 type ProductFormData = z.infer<typeof productSchema>
@@ -86,6 +89,7 @@ type ProductFormData = z.infer<typeof productSchema>
 export default function AdminProductsPage() {
   const { isAuthenticated } = useAdminAuth()
   const [products, setProducts] = useState<Product[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
@@ -93,6 +97,10 @@ export default function AdminProductsPage() {
   const [productImages, setProductImages] = useState<string[]>([])
   const [uploadingDocuments, setUploadingDocuments] = useState(false)
   const [productDocuments, setProductDocuments] = useState<Array<{ url: string; filename: string; size?: number }>>([])
+  const [uploadingDatasheet, setUploadingDatasheet] = useState(false)
+  const [datasheetUrl, setDatasheetUrl] = useState<string>('')
+  const [uploadingDrawing, setUploadingDrawing] = useState(false)
+  const [drawingUrl, setDrawingUrl] = useState<string>('')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [productToDelete, setProductToDelete] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -115,7 +123,22 @@ export default function AdminProductsPage() {
 
   useEffect(() => {
     fetchProducts()
+    fetchCategories()
   }, [])
+
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || ''}/api/categories?limit=1000`,
+      )
+      if (response.ok) {
+        const data = await response.json()
+        setCategories(Array.isArray(data.categories) ? data.categories : [])
+      }
+    } catch (error) {
+      console.error('Failed to fetch categories', error)
+    }
+  }
 
   const fetchProducts = async () => {
     try {
@@ -257,13 +280,125 @@ export default function AdminProductsPage() {
     setValue('documents', newDocuments)
   }
 
+  const handleDatasheetUpload = async (file: File) => {
+    if (!isAuthenticated) {
+      alert('Authentication required. Please log in again.')
+      return
+    }
+
+    if (file.size > 50 * 1024 * 1024) {
+      alert('File size must be less than 50MB')
+      return
+    }
+
+    const allowedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ]
+    if (!allowedTypes.includes(file.type)) {
+      alert('Please upload a PDF or Word document (.pdf, .doc, .docx)')
+      return
+    }
+
+    setUploadingDatasheet(true)
+    try {
+      const formData = new FormData()
+      formData.append('document', file)
+      formData.append('type', 'document')
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || ''}/api/admin/upload`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          body: formData,
+        }
+      )
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Upload failed' }))
+        throw new Error(errorData.error || 'Upload failed')
+      }
+
+      const data = await response.json()
+      setDatasheetUrl(data.url)
+      setValue('datasheetUrl', data.url)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to upload datasheet. Please try again.'
+      alert(errorMessage)
+    } finally {
+      setUploadingDatasheet(false)
+    }
+  }
+
+  const handleDrawingUpload = async (file: File) => {
+    if (!isAuthenticated) {
+      alert('Authentication required. Please log in again.')
+      return
+    }
+
+    if (file.size > 50 * 1024 * 1024) {
+      alert('File size must be less than 50MB')
+      return
+    }
+
+    const allowedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'image/jpeg',
+      'image/png',
+      'application/octet-stream', // For CAD files
+    ]
+    if (!allowedTypes.includes(file.type)) {
+      alert('Please upload a PDF, Word document, or image file')
+      return
+    }
+
+    setUploadingDrawing(true)
+    try {
+      const formData = new FormData()
+      formData.append('document', file)
+      formData.append('type', 'document')
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || ''}/api/admin/upload`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          body: formData,
+        }
+      )
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Upload failed' }))
+        throw new Error(errorData.error || 'Upload failed')
+      }
+
+      const data = await response.json()
+      setDrawingUrl(data.url)
+      setValue('drawingUrl', data.url)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to upload drawing. Please try again.'
+      alert(errorMessage)
+    } finally {
+      setUploadingDrawing(false)
+    }
+  }
+
   const openCreateDialog = () => {
     setEditingProduct(null)
     setProductImages([])
     setProductDocuments([])
+    setDatasheetUrl('')
+    setDrawingUrl('')
     reset({
       images: [],
       documents: [],
+      categoryId: undefined,
+      datasheetUrl: '',
+      drawingUrl: '',
     })
     setIsDialogOpen(true)
   }
@@ -272,9 +407,12 @@ export default function AdminProductsPage() {
     setEditingProduct(product)
     setProductImages(product.images || [])
     setProductDocuments(product.documents || [])
+    setDatasheetUrl(product.datasheetUrl || '')
+    setDrawingUrl(product.drawingUrl || '')
     reset({
       mpn: product.mpn || '',
       description: product.description || '',
+      categoryId: product.categoryId || '',
       productType: product.productType || '',
       coupling: product.coupling || '',
       degreeOfProtection: product.degreeOfProtection || undefined,
@@ -301,6 +439,8 @@ export default function AdminProductsPage() {
       strippingForce: product.strippingForce || '',
       images: product.images || [],
       documents: product.documents || [],
+      datasheetUrl: product.datasheetUrl || '',
+      drawingUrl: product.drawingUrl || '',
     })
     setIsDialogOpen(true)
   }
@@ -312,10 +452,21 @@ export default function AdminProductsPage() {
     }
 
     try {
+      // Ensure description is not empty
+      if (!data.description || data.description.trim().length === 0) {
+        alert('Description is required. Please enter a product description.')
+        return
+      }
+
       const productData = {
         ...data,
-        images: productImages,
-        documents: productDocuments,
+        description: data.description.trim(),
+        images: productImages || [],
+        documents: productDocuments || [],
+        datasheetUrl: datasheetUrl || undefined,
+        drawingUrl: drawingUrl || undefined,
+        // Ensure categoryId is valid UUID or undefined
+        categoryId: data.categoryId && data.categoryId.trim() ? data.categoryId.trim() : undefined,
       }
 
       // Get CSRF token for state-changing operations
@@ -340,8 +491,21 @@ export default function AdminProductsPage() {
       reset()
       setProductImages([])
       setProductDocuments([])
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to save product. Please try again.'
+      setDatasheetUrl('')
+      setDrawingUrl('')
+    } catch (error: any) {
+      // Handle validation errors with details
+      let errorMessage = 'Failed to save product. Please try again.'
+      
+      if (error?.data?.details && Array.isArray(error.data.details)) {
+        const errorMessages = error.data.details.map((d: any) => `${d.field}: ${d.message}`).join('\n')
+        errorMessage = `Validation failed:\n${errorMessages}`
+      } else if (error?.data?.error) {
+        errorMessage = error.data.error
+      } else if (error?.message) {
+        errorMessage = error.message
+      }
+      
       alert(errorMessage)
     }
   }
@@ -497,6 +661,29 @@ export default function AdminProductsPage() {
               />
               {errors.description && (
                 <p className="text-sm text-red-500">{errors.description.message}</p>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="categoryId">Category</Label>
+              <Select
+                onValueChange={(value) => setValue('categoryId', value)}
+                value={watch('categoryId') || ''}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a category" />
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px] overflow-y-auto">
+                  <SelectItem value="">No Category</SelectItem>
+                  {categories.map((category) => (
+                    <SelectItem key={category.id} value={category.id}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.categoryId && (
+                <p className="text-sm text-red-500">{errors.categoryId.message}</p>
               )}
             </div>
 
@@ -786,6 +973,120 @@ export default function AdminProductsPage() {
                   ))}
                   {productDocuments.length === 0 && (
                     <p className="text-sm text-gray-500 italic">No documents uploaded</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Product Datasheet</Label>
+                <p className="text-sm text-gray-500 mb-2">Upload product datasheet (PDF or Word, max 50MB)</p>
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Input
+                      type="file"
+                      accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handleDatasheetUpload(file)
+                      }}
+                      disabled={uploadingDatasheet}
+                      className="flex-1"
+                    />
+                    {uploadingDatasheet && (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    )}
+                  </div>
+                  {datasheetUrl && (
+                    <div className="flex items-center justify-between p-3 border rounded-md bg-gray-50">
+                      <div className="flex items-center space-x-2 flex-1 min-w-0">
+                        <FileText className="h-5 w-5 text-gray-500 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            Datasheet
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <a
+                          href={`${process.env.NEXT_PUBLIC_API_URL || ''}${datasheetUrl}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-blue-600 hover:text-blue-800"
+                        >
+                          View
+                        </a>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-red-500 hover:text-red-700"
+                          onClick={() => {
+                            setDatasheetUrl('')
+                            setValue('datasheetUrl', '')
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <Label>Product Drawing</Label>
+                <p className="text-sm text-gray-500 mb-2">Upload product drawing (PDF, Word, or Image, max 50MB)</p>
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handleDrawingUpload(file)
+                      }}
+                      disabled={uploadingDrawing}
+                      className="flex-1"
+                    />
+                    {uploadingDrawing && (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    )}
+                  </div>
+                  {drawingUrl && (
+                    <div className="flex items-center justify-between p-3 border rounded-md bg-gray-50">
+                      <div className="flex items-center space-x-2 flex-1 min-w-0">
+                        <FileText className="h-5 w-5 text-gray-500 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            Drawing
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <a
+                          href={`${process.env.NEXT_PUBLIC_API_URL || ''}${drawingUrl}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-blue-600 hover:text-blue-800"
+                        >
+                          View
+                        </a>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-red-500 hover:text-red-700"
+                          onClick={() => {
+                            setDrawingUrl('')
+                            setValue('drawingUrl', '')
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>

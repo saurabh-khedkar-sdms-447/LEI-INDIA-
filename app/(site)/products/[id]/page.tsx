@@ -115,6 +115,55 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 <AddToRFQButton product={product} />
               </div>
 
+              {/* Download Options */}
+              {(product.datasheetUrl || product.drawingUrl) && (
+                <Card className="mb-6">
+                  <CardHeader>
+                    <CardTitle>Downloads</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-col sm:flex-row gap-4">
+                      {product.datasheetUrl && (
+                        <Button
+                          asChild
+                          variant="outline"
+                          className="flex-1"
+                          size="sm"
+                        >
+                          <a
+                            href={`${process.env.NEXT_PUBLIC_API_URL || ''}${product.datasheetUrl}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            download
+                          >
+                            <Download className="h-4 w-4 mr-2" aria-hidden="true" />
+                            Download Datasheet
+                          </a>
+                        </Button>
+                      )}
+                      {product.drawingUrl && (
+                        <Button
+                          asChild
+                          variant="outline"
+                          className="flex-1"
+                          size="sm"
+                        >
+                          <a
+                            href={`${process.env.NEXT_PUBLIC_API_URL || ''}${product.drawingUrl}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            download
+                          >
+                            <Download className="h-4 w-4 mr-2" aria-hidden="true" />
+                            Download Drawing
+                          </a>
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               <Card>
                 <CardHeader>
                   <CardTitle>Quick Specs</CardTitle>

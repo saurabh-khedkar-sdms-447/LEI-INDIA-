@@ -36,6 +36,8 @@ export const productSchema = z.object({
     filename: z.string(),
     size: z.number().optional(),
   })).default([]),
+  datasheetUrl: z.string().optional(),
+  drawingUrl: z.string().optional(),
 })
 
 export const productUpdateSchema = productSchema.partial()
