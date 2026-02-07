@@ -37,9 +37,9 @@ export function Header() {
               <Image
                 src="/images/logo.png"
                 alt="LEI Indias Logo"
-                width={150}
-                height={40}
-                className="h-10 w-auto"
+                width={210}
+                height={56}
+                className="h-14 w-auto"
                 priority
               />
             </Link>
