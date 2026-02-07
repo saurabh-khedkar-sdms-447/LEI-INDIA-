@@ -92,8 +92,13 @@ export default function AdminOrdersPage() {
       const data = await response.json()
       // Handle both paginated response { orders: [...], pagination: {...} } and direct array
       const ordersArray = Array.isArray(data) ? data : (data.orders || [])
-      setOrders(ordersArray)
-      setFilteredOrders(ordersArray)
+      // Ensure items array exists for each order
+      const ordersWithItems = ordersArray.map((order: any) => ({
+        ...order,
+        items: order.items || [],
+      }))
+      setOrders(ordersWithItems)
+      setFilteredOrders(ordersWithItems)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to load orders. Please refresh the page or try again later.'
       setError(errorMessage)
@@ -108,13 +113,20 @@ export default function AdminOrdersPage() {
     if (!isAuthenticated) return
 
     try {
+      // Get CSRF token for state-changing operations
+      const csrfResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/csrf-token`)
+      const csrfData = await csrfResponse.json()
+      const csrfToken = csrfData.token
+
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || ''}/api/orders/${orderId}`,
         {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken,
           },
+          credentials: 'include',
           body: JSON.stringify({ status: newStatus }),
         }
       )

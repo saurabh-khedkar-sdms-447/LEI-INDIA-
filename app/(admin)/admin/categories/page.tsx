@@ -122,6 +122,7 @@ export default function AdminCategoriesPage() {
         `${process.env.NEXT_PUBLIC_API_URL || ''}/api/admin/upload`,
         {
           method: 'POST',
+          credentials: 'include',
           body: formData,
         }
       )
@@ -193,7 +194,7 @@ export default function AdminCategoriesPage() {
         name: data.name.trim(),
         slug: data.slug.trim(),
         description: data.description?.trim() || undefined,
-        image: categoryImage || undefined,
+        image: categoryImage || data.image || undefined,
         parentId: data.parentId?.trim() || undefined,
       }
 

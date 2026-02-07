@@ -82,17 +82,25 @@ export default function AdminInquiriesPage() {
 
   const fetchInquiries = async () => {
     try {
+      setIsLoading(true)
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || ''}/api/inquiries`,
       )
 
-      if (!response.ok) throw new Error('Failed to fetch inquiries')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to fetch inquiries' }))
+        throw new Error(errorData.error || 'Failed to fetch inquiries')
+      }
 
       const data = await response.json()
-      setInquiries(data.inquiries || [])
-      setFilteredInquiries(data.inquiries || [])
-    } catch {
-      // Leave inquiries empty on failure; UI already reflects lack of data.
+      // Handle both paginated response { inquiries: [...], pagination: {...} } and direct array
+      const inquiriesArray = Array.isArray(data) ? data : (data.inquiries || [])
+      setInquiries(inquiriesArray)
+      setFilteredInquiries(inquiriesArray)
+    } catch (error) {
+      console.error('Error fetching inquiries:', error)
+      setInquiries([])
+      setFilteredInquiries([])
     } finally {
       setIsLoading(false)
     }
@@ -102,13 +110,20 @@ export default function AdminInquiriesPage() {
     if (!isAuthenticated) return
 
     try {
+      // Get CSRF token for state-changing operations
+      const csrfResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/csrf-token`)
+      const csrfData = await csrfResponse.json()
+      const csrfToken = csrfData.token
+
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || ''}/api/inquiries/${inquiryId}`,
         {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken,
           },
+          credentials: 'include',
           body: JSON.stringify({ read }),
         }
       )
@@ -128,13 +143,20 @@ export default function AdminInquiriesPage() {
     if (!isAuthenticated) return
 
     try {
+      // Get CSRF token for state-changing operations
+      const csrfResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/csrf-token`)
+      const csrfData = await csrfResponse.json()
+      const csrfToken = csrfData.token
+
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || ''}/api/inquiries/${inquiryId}`,
         {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken,
           },
+          credentials: 'include',
           body: JSON.stringify({ responded }),
         }
       )
@@ -154,10 +176,19 @@ export default function AdminInquiriesPage() {
     if (!isAuthenticated || !confirm('Are you sure you want to delete this inquiry?')) return
 
     try {
+      // Get CSRF token for state-changing operations
+      const csrfResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/csrf-token`)
+      const csrfData = await csrfResponse.json()
+      const csrfToken = csrfData.token
+
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || ''}/api/inquiries/${inquiryId}`,
         {
           method: 'DELETE',
+          headers: {
+            'X-CSRF-Token': csrfToken,
+          },
+          credentials: 'include',
         }
       )
 

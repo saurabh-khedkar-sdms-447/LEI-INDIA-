@@ -153,6 +153,7 @@ export default function AdminHeroSlidesPage() {
         `${process.env.NEXT_PUBLIC_API_URL || ''}/api/admin/upload`,
         {
           method: 'POST',
+          credentials: 'include',
           body: formData,
         }
       )
@@ -206,9 +207,17 @@ export default function AdminHeroSlidesPage() {
     }
 
     try {
+      // Ensure image is set - use existing image if updating and no new image uploaded
+      const imageUrl = slideImage || (editingSlide?.image || '')
+      
+      if (!imageUrl) {
+        alert('Image is required. Please upload an image.')
+        return
+      }
+
       const slideData = {
         ...data,
-        image: slideImage,
+        image: imageUrl,
       }
 
       const url = editingSlide
@@ -217,11 +226,18 @@ export default function AdminHeroSlidesPage() {
 
       const method = editingSlide ? 'PUT' : 'POST'
 
+      // Get CSRF token for state-changing operations
+      const csrfResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/csrf-token`)
+      const csrfData = await csrfResponse.json()
+      const csrfToken = csrfData.token
+
       const response = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken,
         },
+        credentials: 'include',
         body: JSON.stringify(slideData),
       })
 

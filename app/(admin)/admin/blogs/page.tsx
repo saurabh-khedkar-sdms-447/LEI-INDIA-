@@ -43,11 +43,9 @@ import { z } from 'zod'
 
 const blogSchema = z.object({
   title: z.string().min(1, 'Title is required'),
-  excerpt: z.string().min(1, 'Excerpt is required'),
-  content: z.string().min(1, 'Content is required'),
-  author: z.string().min(1, 'Author is required'),
-  category: z.string().min(1, 'Category is required'),
-  image: z.string().optional(),
+  excerpt: z.string().optional(),
+  content: z.string().optional(),
+  image: z.string().optional().or(z.literal('')),
   published: z.boolean(),
 })
 
@@ -56,13 +54,11 @@ type BlogFormData = z.infer<typeof blogSchema>
 interface Blog {
   id: string
   title: string
-  excerpt: string
-  content: string
-  author: string
-  category: string
+  slug: string
+  excerpt?: string
+  content?: string
   image?: string
   published: boolean
-  publishedAt?: string
   createdAt: string
   updatedAt: string
 }
@@ -120,6 +116,7 @@ export default function AdminBlogsPage() {
         `${process.env.NEXT_PUBLIC_API_URL || ''}/api/admin/upload`,
         {
           method: 'POST',
+          credentials: 'include',
           body: formData,
         }
       )
@@ -150,11 +147,9 @@ export default function AdminBlogsPage() {
     setBlogImage(blog.image || '')
     reset({
       title: blog.title,
-      excerpt: blog.excerpt,
-      content: blog.content,
-      author: blog.author,
-      category: blog.category,
-      image: blog.image,
+      excerpt: blog.excerpt || '',
+      content: blog.content || '',
+      image: blog.image || '',
       published: blog.published,
     })
     setIsDialogOpen(true)
@@ -267,8 +262,7 @@ export default function AdminBlogsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Title</TableHead>
-                <TableHead>Author</TableHead>
-                <TableHead>Category</TableHead>
+                <TableHead>Slug</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -277,7 +271,7 @@ export default function AdminBlogsPage() {
             <TableBody>
               {blogs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                  <TableCell colSpan={5} className="text-center py-8 text-gray-500">
                     No blogs found
                   </TableCell>
                 </TableRow>
@@ -285,8 +279,7 @@ export default function AdminBlogsPage() {
                 blogs.map((blog) => (
                   <TableRow key={blog.id}>
                     <TableCell className="font-medium">{blog.title}</TableCell>
-                    <TableCell>{blog.author}</TableCell>
-                    <TableCell>{blog.category}</TableCell>
+                    <TableCell>{blog.slug}</TableCell>
                     <TableCell>
                       {blog.published ? (
                         <span className="text-green-600">Published</span>
@@ -372,23 +365,6 @@ export default function AdminBlogsPage() {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="author">Author *</Label>
-                <Input id="author" {...register('author')} />
-                {errors.author && (
-                  <p className="text-sm text-red-500">{errors.author.message}</p>
-                )}
-              </div>
-
-              <div>
-                <Label htmlFor="category">Category *</Label>
-                <Input id="category" {...register('category')} />
-                {errors.category && (
-                  <p className="text-sm text-red-500">{errors.category.message}</p>
-                )}
-              </div>
-            </div>
 
             <div>
               <Label>Blog Image</Label>
