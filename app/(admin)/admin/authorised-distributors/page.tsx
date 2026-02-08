@@ -95,7 +95,7 @@ export default function AdminAuthorisedDistributorsPage() {
 
   const fetchDistributors = async () => {
     try {
-      const response = await fetch('/api/authorised-distributors')
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/authorised-distributors`)
       if (!response.ok) throw new Error('Failed to fetch distributors')
       const data = await response.json()
       setDistributors(Array.isArray(data) ? data : [])
@@ -139,8 +139,9 @@ export default function AdminAuthorisedDistributorsPage() {
       const formData = new FormData()
       formData.append('file', file)
 
-      const response = await fetch('/api/admin/upload', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/admin/upload`, {
         method: 'POST',
+        credentials: 'include',
         body: formData,
       })
 
@@ -156,28 +157,44 @@ export default function AdminAuthorisedDistributorsPage() {
   }
 
   const onSubmit = async (data: DistributorFormData) => {
-    if (!isAuthenticated) return
+    if (!isAuthenticated) {
+      alert('Authentication required. Please log in again.')
+      return
+    }
 
     try {
+      // Get CSRF token for state-changing operations
+      const csrfResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/csrf-token`)
+      const csrfData = await csrfResponse.json()
+      const csrfToken = csrfData.token
+
       const url = editingDistributor
-        ? `/api/authorised-distributors/${editingDistributor.id}`
-        : '/api/authorised-distributors'
+        ? `${process.env.NEXT_PUBLIC_API_URL || ''}/api/authorised-distributors/${editingDistributor.id}`
+        : `${process.env.NEXT_PUBLIC_API_URL || ''}/api/authorised-distributors`
 
       const method = editingDistributor ? 'PUT' : 'POST'
 
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken,
+        },
+        credentials: 'include',
         body: JSON.stringify(data),
       })
 
-      if (!response.ok) throw new Error('Failed to save distributor')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to save distributor' }))
+        throw new Error(errorData.error || errorData.details?.[0]?.message || 'Failed to save distributor')
+      }
 
       setIsDialogOpen(false)
       fetchDistributors()
       reset()
-    } catch {
-      alert('Failed to save distributor')
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save distributor. Please try again.'
+      alert(errorMessage)
     }
   }
 
@@ -185,15 +202,31 @@ export default function AdminAuthorisedDistributorsPage() {
     if (!isAuthenticated || !confirm('Are you sure you want to delete this distributor?')) return
 
     try {
-      const response = await fetch(`/api/authorised-distributors/${id}`, {
-        method: 'DELETE',
-      })
+      // Get CSRF token for state-changing operations
+      const csrfResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/csrf-token`)
+      const csrfData = await csrfResponse.json()
+      const csrfToken = csrfData.token
 
-      if (!response.ok) throw new Error('Failed to delete distributor')
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || ''}/api/authorised-distributors/${id}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'X-CSRF-Token': csrfToken,
+          },
+          credentials: 'include',
+        }
+      )
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to delete distributor' }))
+        throw new Error(errorData.error || 'Failed to delete distributor')
+      }
 
       fetchDistributors()
-    } catch {
-      alert('Failed to delete distributor')
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete distributor. Please try again.'
+      alert(errorMessage)
     }
   }
 

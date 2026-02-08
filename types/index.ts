@@ -6,6 +6,8 @@ export type ConnectorGender = 'Male' | 'Female'
 
 export interface Product {
   id: string
+  sku: string
+  name: string
   mpn?: string
   description: string
   categoryId?: string
@@ -33,6 +35,10 @@ export interface Product {
   connectorType?: ConnectorType
   code?: ConnectorCoding
   strippingForce?: string
+  price?: number
+  priceType?: 'per_unit' | 'per_pack' | 'per_bulk'
+  inStock?: boolean
+  stockQuantity?: number
   images: string[]
   documents?: Array<{
     url: string

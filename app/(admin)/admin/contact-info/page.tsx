@@ -59,7 +59,7 @@ export default function AdminContactInfoPage() {
   useEffect(() => {
     void (async () => {
       try {
-        const response = await fetch(`/api/contact-info`)
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/contact-info`)
         const data = await response.json()
         setContactInfo(data)
         reset({
@@ -69,9 +69,9 @@ export default function AdminContactInfoPage() {
           registeredAddress: data.registeredAddress || '',
           factoryLocation2: data.factoryLocation2 || '',
           regionalContacts: {
-            bangalore: data.regionalContacts?.bangalore || '',
-            kolkata: data.regionalContacts?.kolkata || '',
-            gurgaon: data.regionalContacts?.gurgaon || '',
+            bangalore: data.regionalBangalore || data.regionalContacts?.bangalore || '',
+            kolkata: data.regionalKolkata || data.regionalContacts?.kolkata || '',
+            gurgaon: data.regionalGurgaon || data.regionalContacts?.gurgaon || '',
           },
         })
       } catch {
@@ -83,30 +83,46 @@ export default function AdminContactInfoPage() {
   }, [reset])
 
   const onSubmit = async (data: ContactInfoFormData) => {
-    if (!isAuthenticated) return
+    if (!isAuthenticated) {
+      alert('Authentication required. Please log in again.')
+      return
+    }
 
     setIsSaving(true)
     setSaveSuccess(false)
 
     try {
-      const response = await fetch(`/api/contact-info`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      })
+      // Get CSRF token for state-changing operations
+      const csrfResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/csrf-token`)
+      const csrfData = await csrfResponse.json()
+      const csrfToken = csrfData.token
+
+      // Send data in the format expected by the validation schema
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || ''}/api/contact-info`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken,
+          },
+          credentials: 'include',
+          body: JSON.stringify(data),
+        }
+      )
 
       if (!response.ok) {
-        throw new Error('Failed to update contact information')
+        const errorData = await response.json().catch(() => ({ error: 'Failed to update contact information' }))
+        throw new Error(errorData.error || 'Failed to update contact information')
       }
 
       const updated = await response.json()
       setContactInfo(updated)
       setSaveSuccess(true)
       setTimeout(() => setSaveSuccess(false), 3000)
-    } catch {
-      alert('Failed to update contact information')
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update contact information. Please try again.'
+      alert(errorMessage)
     } finally {
       setIsSaving(false)
     }

@@ -97,8 +97,7 @@ export default function AdminInquiriesPage() {
       const inquiriesArray = Array.isArray(data) ? data : (data.inquiries || [])
       setInquiries(inquiriesArray)
       setFilteredInquiries(inquiriesArray)
-    } catch (error) {
-      console.error('Error fetching inquiries:', error)
+    } catch {
       setInquiries([])
       setFilteredInquiries([])
     } finally {

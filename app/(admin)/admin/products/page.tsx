@@ -47,6 +47,8 @@ import { z } from 'zod'
 import { apiClient } from '@/lib/api-client'
 
 const productSchema = z.object({
+  sku: z.string().min(1, 'SKU is required').trim(),
+  name: z.string().min(1, 'Name is required').trim(),
   mpn: z.string().optional(),
   description: z.string().min(1, 'Description is required'),
   productType: z.string().optional(),
@@ -73,6 +75,10 @@ const productSchema = z.object({
   connectorType: z.enum(['M12', 'M8', 'RJ45']).optional(),
   code: z.enum(['A', 'B', 'D', 'X']).optional(),
   strippingForce: z.string().optional(),
+  price: z.number().nonnegative('Price must be non-negative').optional(),
+  priceType: z.enum(['per_unit', 'per_pack', 'per_bulk']).default('per_unit'),
+  inStock: z.boolean().default(false),
+  stockQuantity: z.number().int().nonnegative('Stock quantity must be non-negative').optional(),
   categoryId: z.string().uuid().optional(),
   images: z.array(z.string()).optional(),
   documents: z.array(z.object({
@@ -123,8 +129,7 @@ export default function AdminProductsPage() {
 
   useEffect(() => {
     // Fetch data on mount
-    fetchProducts().catch((error) => {
-      console.error('Error fetching products in useEffect:', error)
+    fetchProducts().catch(() => {
       setError('Failed to load products. Please refresh the page.')
       setIsLoading(false)
     })
@@ -141,8 +146,8 @@ export default function AdminProductsPage() {
         const data = await response.json()
         setCategories(Array.isArray(data.categories) ? data.categories : [])
       }
-    } catch (error) {
-      console.error('Failed to fetch categories', error)
+    } catch {
+      // Silently fail - categories are optional
     }
   }
 
@@ -154,16 +159,30 @@ export default function AdminProductsPage() {
       const data = await apiClient.get<{ products: Product[]; pagination?: any } | Product[]>(
         '/api/products?limit=10000',
       )
+      
+      // Normalize products: ensure price is a number or null
+      const normalizeProduct = (product: Product): Product => ({
+        ...product,
+        price: product.price != null 
+          ? (typeof product.price === 'string' ? parseFloat(product.price) : Number(product.price))
+          : undefined,
+        stockQuantity: product.stockQuantity != null
+          ? (typeof product.stockQuantity === 'string' ? parseInt(product.stockQuantity, 10) : Number(product.stockQuantity))
+          : undefined,
+      })
+      
       // Handle both paginated and non-paginated responses
+      let productsList: Product[] = []
       if (Array.isArray(data)) {
-        setProducts(data)
+        productsList = data.map(normalizeProduct)
       } else if (data && typeof data === 'object' && 'products' in data) {
-        setProducts(Array.isArray(data.products) ? data.products : [])
-      } else {
-        setProducts([])
+        productsList = Array.isArray(data.products) 
+          ? data.products.map(normalizeProduct)
+          : []
       }
+      
+      setProducts(productsList)
     } catch (error) {
-      console.error('Error fetching products:', error)
       const errorMessage = error instanceof Error ? error.message : 'Failed to load products. Please refresh the page or try again later.'
       setError(errorMessage)
       // Set empty array to prevent rendering issues
@@ -409,11 +428,15 @@ export default function AdminProductsPage() {
     setDatasheetUrl('')
     setDrawingUrl('')
     reset({
+      sku: '',
+      name: '',
       images: [],
       documents: [],
       categoryId: undefined, // Will be converted to __none__ for Select component
       datasheetUrl: '',
       drawingUrl: '',
+      priceType: 'per_unit',
+      inStock: false,
     })
     setIsDialogOpen(true)
   }
@@ -425,6 +448,8 @@ export default function AdminProductsPage() {
     setDatasheetUrl(product.datasheetUrl || '')
     setDrawingUrl(product.drawingUrl || '')
     reset({
+      sku: product.sku || '',
+      name: product.name || '',
       mpn: product.mpn || '',
       description: product.description || '',
       categoryId: product.categoryId || undefined,
@@ -452,6 +477,10 @@ export default function AdminProductsPage() {
       connectorType: product.connectorType || undefined,
       code: product.code || undefined,
       strippingForce: product.strippingForce || '',
+      price: product.price,
+      priceType: product.priceType || 'per_unit',
+      inStock: product.inStock ?? false,
+      stockQuantity: product.stockQuantity,
       images: product.images || [],
       documents: product.documents || [],
       datasheetUrl: product.datasheetUrl || '',
@@ -467,7 +496,15 @@ export default function AdminProductsPage() {
     }
 
     try {
-      // Ensure description is not empty
+      // Ensure required fields are not empty
+      if (!data.sku || data.sku.trim().length === 0) {
+        alert('SKU is required. Please enter a product SKU.')
+        return
+      }
+      if (!data.name || data.name.trim().length === 0) {
+        alert('Name is required. Please enter a product name.')
+        return
+      }
       if (!data.description || data.description.trim().length === 0) {
         alert('Description is required. Please enter a product description.')
         return
@@ -475,6 +512,8 @@ export default function AdminProductsPage() {
 
       const productData = {
         ...data,
+        sku: data.sku.trim(),
+        name: data.name.trim(),
         description: data.description.trim(),
         images: productImages || [],
         documents: productDocuments || [],
@@ -604,49 +643,74 @@ export default function AdminProductsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>MPN</TableHead>
+                <TableHead>SKU</TableHead>
+                <TableHead>Name</TableHead>
                 <TableHead>Description</TableHead>
-                <TableHead>Product Type</TableHead>
-                <TableHead>Connector Type</TableHead>
+                <TableHead>Price</TableHead>
+                <TableHead>Stock</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {products.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                  <TableCell colSpan={6} className="text-center py-8 text-gray-500">
                     No products found
                   </TableCell>
                 </TableRow>
               ) : (
-                products.map((product) => (
-                  <TableRow key={product.id}>
-                    <TableCell className="font-medium">{product.mpn || 'N/A'}</TableCell>
-                    <TableCell className="max-w-md truncate">{product.description}</TableCell>
-                    <TableCell>{product.productType || 'N/A'}</TableCell>
-                    <TableCell>{product.connectorType || 'N/A'}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end space-x-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openEditDialog(product)}
-                          aria-label={`Edit product ${product.mpn || product.id}`}
-                        >
-                          <Edit className="h-4 w-4" aria-hidden="true" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteClick(product.id)}
-                          aria-label={`Delete product ${product.mpn || product.id}`}
-                        >
-                          <Trash2 className="h-4 w-4 text-red-500" aria-hidden="true" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
+                products.map((product) => {
+                  // Safely format price
+                  let priceDisplay = 'N/A'
+                  try {
+                    if (product.price != null) {
+                      const priceNum = typeof product.price === 'number' 
+                        ? product.price 
+                        : parseFloat(String(product.price))
+                      if (!isNaN(priceNum) && isFinite(priceNum)) {
+                        priceDisplay = `$${priceNum.toFixed(2)}`
+                      }
+                    }
+                  } catch {
+                    priceDisplay = 'N/A'
+                  }
+
+                  return (
+                    <TableRow key={product.id}>
+                      <TableCell className="font-medium">{product.sku || 'N/A'}</TableCell>
+                      <TableCell className="font-medium">{product.name || 'N/A'}</TableCell>
+                      <TableCell className="max-w-md truncate">{product.description || 'N/A'}</TableCell>
+                      <TableCell>{priceDisplay}</TableCell>
+                      <TableCell>
+                        {product.inStock ? (
+                          <span className="text-green-600">{product.stockQuantity ?? 'In Stock'}</span>
+                        ) : (
+                          <span className="text-red-600">Out of Stock</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end space-x-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openEditDialog(product)}
+                            aria-label={`Edit product ${product.sku || product.id}`}
+                          >
+                            <Edit className="h-4 w-4" aria-hidden="true" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteClick(product.id)}
+                            aria-label={`Delete product ${product.sku || product.id}`}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" aria-hidden="true" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
               )}
             </TableBody>
           </Table>
@@ -668,6 +732,23 @@ export default function AdminProductsPage() {
           </DialogHeader>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="sku">SKU *</Label>
+                <Input id="sku" {...register('sku')} placeholder="Product SKU (e.g., PROD-001)" />
+                {errors.sku && (
+                  <p className="text-sm text-red-500">{errors.sku.message}</p>
+                )}
+              </div>
+              <div>
+                <Label htmlFor="name">Name *</Label>
+                <Input id="name" {...register('name')} placeholder="Product name" />
+                {errors.name && (
+                  <p className="text-sm text-red-500">{errors.name.message}</p>
+                )}
+              </div>
+            </div>
+
             <div>
               <Label htmlFor="description">Description *</Label>
               <textarea
@@ -711,6 +792,50 @@ export default function AdminProductsPage() {
               <div>
                 <Label htmlFor="mpn">MPN</Label>
                 <Input id="mpn" {...register('mpn')} placeholder="Manufacturer part number" />
+              </div>
+
+              <div>
+                <Label htmlFor="price">Price</Label>
+                <Input 
+                  id="price" 
+                  type="number" 
+                  step="0.01"
+                  {...register('price', { valueAsNumber: true })} 
+                  placeholder="0.00" 
+                />
+                {errors.price && (
+                  <p className="text-sm text-red-500">{errors.price.message}</p>
+                )}
+              </div>
+
+              <div>
+                <Label htmlFor="priceType">Price Type</Label>
+                <Select
+                  onValueChange={(value) => setValue('priceType', value as any)}
+                  value={watch('priceType') || 'per_unit'}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select price type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="per_unit">Per Unit</SelectItem>
+                    <SelectItem value="per_pack">Per Pack</SelectItem>
+                    <SelectItem value="per_bulk">Per Bulk</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="stockQuantity">Stock Quantity</Label>
+                <Input 
+                  id="stockQuantity" 
+                  type="number" 
+                  {...register('stockQuantity', { valueAsNumber: true })} 
+                  placeholder="0" 
+                />
+                {errors.stockQuantity && (
+                  <p className="text-sm text-red-500">{errors.stockQuantity.message}</p>
+                )}
               </div>
 
               <div>
@@ -863,6 +988,19 @@ export default function AdminProductsPage() {
 
             {/* Boolean Specifications */}
             <div className="grid grid-cols-2 gap-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="inStock"
+                  checked={watch('inStock') || false}
+                  onCheckedChange={(checked) => {
+                    setValue('inStock', checked === true, { shouldValidate: true })
+                  }}
+                />
+                <Label htmlFor="inStock" className="cursor-pointer">
+                  In Stock
+                </Label>
+              </div>
+
               <div className="flex items-center space-x-2">
                 <Checkbox
                   id="cableDragChainSuitable"

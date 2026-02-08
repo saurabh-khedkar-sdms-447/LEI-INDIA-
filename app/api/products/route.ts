@@ -130,6 +130,8 @@ export async function GET(req: NextRequest) {
       `
       SELECT
         id,
+        sku,
+        name,
         description,
         mpn,
         "categoryId",
@@ -157,6 +159,10 @@ export async function GET(req: NextRequest) {
         "connectorType",
         coding as "code",
         "strippingForce",
+        price,
+        "priceType",
+        "inStock",
+        "stockQuantity",
         images,
         documents,
         "datasheetUrl",
@@ -253,7 +259,7 @@ export const POST = requireAdmin(async (req: NextRequest) => {
     const result = await pgPool.query(
       `
       INSERT INTO "Product" (
-        description,
+        sku, name, description,
         "categoryId",
         mpn, "productType", coupling, "ipRating",
         "wireCrossSection", "temperatureRange", "cableDiameter",
@@ -262,22 +268,24 @@ export const POST = requireAdmin(async (req: NextRequest) => {
         "cableDragChainSuitable", "tighteningTorqueMax",
         "bendingRadiusFixed", "bendingRadiusRepeated", "contactPlating",
         voltage, current, "halogenFree", "connectorType", coding,
-        "strippingForce", images, documents, "datasheetUrl", "drawingUrl",
+        "strippingForce", price, "priceType", "inStock", "stockQuantity",
+        images, documents, "datasheetUrl", "drawingUrl",
         "createdAt", "updatedAt"
       )
       VALUES (
-        $1, $2, $3, $4, $5, $6,
-        $7, $8, $9,
-        $10, $11, $12,
-        $13, $14, $15, $16,
-        $17, $18,
-        $19, $20, $21,
-        $22, $23, $24, $25, $26,
-        $27, $28, $29, $30, $31,
+        $1, $2, $3, $4, $5, $6, $7, $8,
+        $9, $10, $11,
+        $12, $13, $14,
+        $15, $16, $17, $18,
+        $19, $20,
+        $21, $22, $23,
+        $24, $25, $26, $27, $28,
+        $29, $30, $31, $32, $33,
+        $34, $35, $36, $37,
         NOW(), NOW()
       )
       RETURNING
-        id, description,
+        id, sku, name, description,
         "categoryId",
         mpn, "productType", coupling, "ipRating" as "degreeOfProtection",
         "wireCrossSection", "temperatureRange", "cableDiameter",
@@ -286,10 +294,13 @@ export const POST = requireAdmin(async (req: NextRequest) => {
         "cableDragChainSuitable", "tighteningTorqueMax",
         "bendingRadiusFixed", "bendingRadiusRepeated", "contactPlating",
         voltage as "operatingVoltage", current as "ratedCurrent", "halogenFree", "connectorType", coding as "code",
-        "strippingForce", images, documents, "datasheetUrl", "drawingUrl",
+        "strippingForce", price, "priceType", "inStock", "stockQuantity",
+        images, documents, "datasheetUrl", "drawingUrl",
         "createdAt", "updatedAt"
       `,
       [
+        parsed.sku,
+        parsed.name,
         sanitizedDescription,
         parsed.categoryId ?? null,
         parsed.mpn ?? null,
@@ -317,6 +328,10 @@ export const POST = requireAdmin(async (req: NextRequest) => {
         parsed.connectorType ?? null,
         parsed.code ?? null,
         parsed.strippingForce ?? null,
+        parsed.price ?? null,
+        parsed.priceType ?? 'per_unit',
+        parsed.inStock ?? false,
+        parsed.stockQuantity ?? null,
         parsed.images,
         parsed.documents ?? [],
         parsed.datasheetUrl ?? null,

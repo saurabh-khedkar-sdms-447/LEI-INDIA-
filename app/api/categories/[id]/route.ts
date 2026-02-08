@@ -171,6 +171,27 @@ export async function DELETE(
       return NextResponse.json({ error: 'Category not found' }, { status: 404 })
     }
 
+    // Check if category has products
+    const productsCheck = await pgPool.query(
+      `
+      SELECT COUNT(*) as count
+      FROM "Product"
+      WHERE "categoryId" = $1
+      `,
+      [params.id],
+    )
+    const productCount = parseInt(productsCheck.rows[0].count, 10)
+    if (productCount > 0) {
+      return NextResponse.json(
+        { 
+          error: 'Cannot delete category',
+          message: `This category has ${productCount} product(s) associated with it. Please remove or reassign products before deleting the category.`,
+          code: 'CATEGORY_IN_USE'
+        },
+        { status: 400 }
+      )
+    }
+
     const result = await pgPool.query(
       `
       DELETE FROM "Category"

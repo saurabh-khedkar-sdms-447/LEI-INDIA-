@@ -90,7 +90,7 @@ export default function AdminTechnicalDetailsPage() {
 
   const fetchDetails = async () => {
     try {
-      const response = await fetch('/api/technical-details')
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/technical-details`)
       if (!response.ok) throw new Error('Failed to fetch technical details')
       const data = await response.json()
       setDetails(Array.isArray(data) ? data : [])
@@ -103,10 +103,10 @@ export default function AdminTechnicalDetailsPage() {
 
   const fetchProducts = async () => {
     try {
-      const response = await fetch('/api/products?limit=1000')
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/products?limit=1000`)
       if (!response.ok) throw new Error('Failed to fetch products')
       const data = await response.json()
-      setProducts(Array.isArray(data.products) ? data.products : [])
+      setProducts(Array.isArray(data.products) ? data.products : (Array.isArray(data) ? data : []))
     } catch {
       setProducts([])
     }
@@ -134,31 +134,47 @@ export default function AdminTechnicalDetailsPage() {
   }
 
   const onSubmit = async (data: TechnicalDetailsFormData) => {
-    if (!isAuthenticated) return
+    if (!isAuthenticated) {
+      alert('Authentication required. Please log in again.')
+      return
+    }
 
     try {
+      // Get CSRF token for state-changing operations
+      const csrfResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/csrf-token`)
+      const csrfData = await csrfResponse.json()
+      const csrfToken = csrfData.token
+
       const url = editingDetail
-        ? `/api/technical-details/${editingDetail.id}`
-        : '/api/technical-details'
+        ? `${process.env.NEXT_PUBLIC_API_URL || ''}/api/technical-details/${editingDetail.id}`
+        : `${process.env.NEXT_PUBLIC_API_URL || ''}/api/technical-details`
 
       const method = editingDetail ? 'PUT' : 'POST'
 
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken,
+        },
+        credentials: 'include',
         body: JSON.stringify({
           ...data,
           productId: data.productId || undefined,
         }),
       })
 
-      if (!response.ok) throw new Error('Failed to save technical details')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to save technical details' }))
+        throw new Error(errorData.error || errorData.details?.[0]?.message || 'Failed to save technical details')
+      }
 
       setIsDialogOpen(false)
       fetchDetails()
       reset()
-    } catch {
-      alert('Failed to save technical details')
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save technical details. Please try again.'
+      alert(errorMessage)
     }
   }
 
@@ -166,15 +182,31 @@ export default function AdminTechnicalDetailsPage() {
     if (!isAuthenticated || !confirm('Are you sure you want to delete this technical detail?')) return
 
     try {
-      const response = await fetch(`/api/technical-details/${id}`, {
-        method: 'DELETE',
-      })
+      // Get CSRF token for state-changing operations
+      const csrfResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/csrf-token`)
+      const csrfData = await csrfResponse.json()
+      const csrfToken = csrfData.token
 
-      if (!response.ok) throw new Error('Failed to delete technical details')
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || ''}/api/technical-details/${id}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'X-CSRF-Token': csrfToken,
+          },
+          credentials: 'include',
+        }
+      )
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to delete technical details' }))
+        throw new Error(errorData.error || 'Failed to delete technical details')
+      }
 
       fetchDetails()
-    } catch {
-      alert('Failed to delete technical details')
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete technical details. Please try again.'
+      alert(errorMessage)
     }
   }
 
@@ -185,7 +217,10 @@ export default function AdminTechnicalDetailsPage() {
   }
 
   const filteredDetails = details.filter(detail => {
-    if (productFilter !== 'all' && detail.productId !== productFilter) return false
+    if (productFilter !== 'all') {
+      if (productFilter === 'none' && detail.productId) return false
+      if (productFilter !== 'none' && detail.productId !== productFilter) return false
+    }
     if (tabFilter !== 'all' && detail.tab !== tabFilter) return false
     return true
   })

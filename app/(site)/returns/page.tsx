@@ -75,7 +75,7 @@ async function getReturnsContent() {
     )
     return result.rows
   } catch (error) {
-    console.error('Failed to fetch returns content:', error)
+    // Silently return empty array - page will show default content
     return []
   }
 }

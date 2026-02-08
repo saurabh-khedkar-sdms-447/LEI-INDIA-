@@ -55,7 +55,7 @@ async function getAboutUsContent() {
     )
     return result.rows
   } catch (error) {
-    console.error('Failed to fetch about us content:', error)
+    // Silently return empty array - page will show default content
     return []
   }
 }
@@ -64,12 +64,19 @@ function getContentBySection(contents: any[], section: string) {
   return contents.find(c => c.section === section)
 }
 
+function getOtherSections(contents: any[], knownSections: string[]) {
+  return contents
+    .filter(c => !knownSections.includes(c.section))
+    .sort((a, b) => a.displayOrder - b.displayOrder)
+}
+
 export default async function AboutPage() {
   const contents = await getAboutUsContent()
   const heroContent = getContentBySection(contents, 'hero')
   const storyContent = getContentBySection(contents, 'story')
   const missionContent = getContentBySection(contents, 'mission')
   const visionContent = getContentBySection(contents, 'vision')
+  const otherSections = getOtherSections(contents, ['hero', 'story', 'mission', 'vision'])
 
   return (
     <>
@@ -234,6 +241,31 @@ export default async function AboutPage() {
             </div>
           </div>
         </section>
+
+        {/* Additional Content Sections */}
+        {otherSections.length > 0 && (
+          <section className="py-16 bg-white">
+            <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="max-w-4xl mx-auto space-y-8">
+                {otherSections.map((section) => (
+                  <Card key={section.id}>
+                    <CardHeader>
+                      <CardTitle>
+                        {section.title || section.section.charAt(0).toUpperCase() + section.section.slice(1)}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div 
+                        className="prose prose-lg max-w-none"
+                        dangerouslySetInnerHTML={{ __html: section.content }}
+                      />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* CTA Section */}
         <section className="py-16 bg-primary text-primary-foreground">

@@ -73,7 +73,7 @@ export default function AdminAboutUsPage() {
 
   const fetchContents = async () => {
     try {
-      const response = await fetch('/api/about-us-content')
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/about-us-content`)
       if (!response.ok) throw new Error('Failed to fetch content')
       const data = await response.json()
       setContents(Array.isArray(data) ? data : [])
@@ -104,28 +104,44 @@ export default function AdminAboutUsPage() {
   }
 
   const onSubmit = async (data: AboutUsFormData) => {
-    if (!isAuthenticated) return
+    if (!isAuthenticated) {
+      alert('Authentication required. Please log in again.')
+      return
+    }
 
     try {
+      // Get CSRF token for state-changing operations
+      const csrfResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/csrf-token`)
+      const csrfData = await csrfResponse.json()
+      const csrfToken = csrfData.token
+
       const url = editingContent
-        ? `/api/about-us-content/${editingContent.id}`
-        : '/api/about-us-content'
+        ? `${process.env.NEXT_PUBLIC_API_URL || ''}/api/about-us-content/${editingContent.id}`
+        : `${process.env.NEXT_PUBLIC_API_URL || ''}/api/about-us-content`
 
       const method = editingContent ? 'PUT' : 'POST'
 
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken,
+        },
+        credentials: 'include',
         body: JSON.stringify(data),
       })
 
-      if (!response.ok) throw new Error('Failed to save content')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to save content' }))
+        throw new Error(errorData.error || errorData.details?.[0]?.message || 'Failed to save content')
+      }
 
       setIsDialogOpen(false)
       fetchContents()
       reset()
-    } catch {
-      alert('Failed to save content')
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save content. Please try again.'
+      alert(errorMessage)
     }
   }
 
@@ -133,15 +149,31 @@ export default function AdminAboutUsPage() {
     if (!isAuthenticated || !confirm('Are you sure you want to delete this content?')) return
 
     try {
-      const response = await fetch(`/api/about-us-content/${id}`, {
-        method: 'DELETE',
-      })
+      // Get CSRF token for state-changing operations
+      const csrfResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/csrf-token`)
+      const csrfData = await csrfResponse.json()
+      const csrfToken = csrfData.token
 
-      if (!response.ok) throw new Error('Failed to delete content')
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || ''}/api/about-us-content/${id}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'X-CSRF-Token': csrfToken,
+          },
+          credentials: 'include',
+        }
+      )
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to delete content' }))
+        throw new Error(errorData.error || 'Failed to delete content')
+      }
 
       fetchContents()
-    } catch {
-      alert('Failed to delete content')
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete content. Please try again.'
+      alert(errorMessage)
     }
   }
 

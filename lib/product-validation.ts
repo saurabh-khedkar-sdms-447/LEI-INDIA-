@@ -3,6 +3,8 @@ import { z } from 'zod'
 const uuidSchema = z.string().uuid('Invalid UUID format')
 
 export const productSchema = z.object({
+  sku: z.string().min(1, 'SKU is required').trim(),
+  name: z.string().min(1, 'Name is required').trim(),
   mpn: z.string().optional(),
   description: z.string().min(1, 'Description is required'),
   categoryId: uuidSchema.optional(),
@@ -30,6 +32,10 @@ export const productSchema = z.object({
   connectorType: z.enum(['M12', 'M8', 'RJ45']).optional(),
   code: z.enum(['A', 'B', 'D', 'X']).optional(),
   strippingForce: z.string().optional(),
+  price: z.number().nonnegative('Price must be non-negative').optional(),
+  priceType: z.enum(['per_unit', 'per_pack', 'per_bulk']).default('per_unit'),
+  inStock: z.boolean().default(false),
+  stockQuantity: z.number().int().nonnegative('Stock quantity must be non-negative').optional(),
   images: z.array(z.string()).default([]),
   documents: z.array(z.object({
     url: z.string(),

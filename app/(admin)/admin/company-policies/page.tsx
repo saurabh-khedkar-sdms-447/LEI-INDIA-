@@ -87,7 +87,7 @@ export default function AdminCompanyPoliciesPage() {
 
   const fetchPolicies = async () => {
     try {
-      const response = await fetch('/api/company-policies')
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/company-policies`)
       if (!response.ok) throw new Error('Failed to fetch policies')
       const data = await response.json()
       setPolicies(Array.isArray(data) ? data : [])
@@ -129,28 +129,44 @@ export default function AdminCompanyPoliciesPage() {
   }
 
   const onSubmit = async (data: PolicyFormData) => {
-    if (!isAuthenticated) return
+    if (!isAuthenticated) {
+      alert('Authentication required. Please log in again.')
+      return
+    }
 
     try {
+      // Get CSRF token for state-changing operations
+      const csrfResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/csrf-token`)
+      const csrfData = await csrfResponse.json()
+      const csrfToken = csrfData.token
+
       const url = editingPolicy
-        ? `/api/company-policies/${editingPolicy.id}`
-        : '/api/company-policies'
+        ? `${process.env.NEXT_PUBLIC_API_URL || ''}/api/company-policies/${editingPolicy.id}`
+        : `${process.env.NEXT_PUBLIC_API_URL || ''}/api/company-policies`
 
       const method = editingPolicy ? 'PUT' : 'POST'
 
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken,
+        },
+        credentials: 'include',
         body: JSON.stringify(data),
       })
 
-      if (!response.ok) throw new Error('Failed to save policy')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to save policy' }))
+        throw new Error(errorData.error || errorData.details?.[0]?.message || 'Failed to save policy')
+      }
 
       setIsDialogOpen(false)
       fetchPolicies()
       reset()
-    } catch {
-      alert('Failed to save policy')
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save policy. Please try again.'
+      alert(errorMessage)
     }
   }
 
@@ -158,9 +174,21 @@ export default function AdminCompanyPoliciesPage() {
     if (!isAuthenticated || !confirm('Are you sure you want to delete this policy?')) return
 
     try {
-      const response = await fetch(`/api/company-policies/${id}`, {
-        method: 'DELETE',
-      })
+      // Get CSRF token for state-changing operations
+      const csrfResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/csrf-token`)
+      const csrfData = await csrfResponse.json()
+      const csrfToken = csrfData.token
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || ''}/api/company-policies/${id}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'X-CSRF-Token': csrfToken,
+          },
+          credentials: 'include',
+        }
+      )
 
       if (!response.ok) throw new Error('Failed to delete policy')
 

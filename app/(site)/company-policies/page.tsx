@@ -2,57 +2,48 @@ import type { Metadata } from "next"
 import { Header } from "@/components/shared/Header"
 import { Footer } from "@/components/shared/Footer"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import Link from "next/link"
+import { pgPool } from "@/lib/pg"
 
 export const metadata: Metadata = {
   title: "Company Policies",
   description: "View LEI Indias company policies and download official policy documents.",
 }
 
-type PolicyDocument = {
+export const dynamic = 'force-dynamic'
+
+interface Policy {
+  id: string
   title: string
-  description: string
-  href: string
+  slug: string
+  content: string
+  policyType?: string
+  displayOrder: number
+  active: boolean
+  createdAt: string
+  updatedAt: string
 }
 
-const policyDocuments: PolicyDocument[] = [
-  {
-    title: "Corporate Social Responsibility Policy",
-    description: "Our commitment to responsible, ethical, and sustainable business practices.",
-    href: "/documents/POLICY-HR-001 Corporate Social Responsibility Policy.pdf",
-  },
-  {
-    title: "Corporate Social Responsibility Policy (Copy)",
-    description: "Secondary copy of our CSR policy for reference.",
-    href: "/documents/POLICY-HR-001 Corporate Social Responsibility Policy - Copy.pdf",
-  },
-  {
-    title: "Anti-Bribery or Corruption Policy",
-    description: "Guidelines and expectations for preventing bribery and corruption.",
-    href: "/documents/POLICY-HR-002 Anti-Bribery or Corruption Policy.pdf",
-  },
-  {
-    title: "Code of Conduct Policy",
-    description: "Standards of professional and ethical behavior for all stakeholders.",
-    href: "/documents/POLICY-HR-003 Code of Conduct Policy.pdf",
-  },
-  {
-    title: "Whistle Blower Policy",
-    description: "Framework to safely report unethical or illegal activities.",
-    href: "/documents/POLICY-HR-004 Whistle Blower Policy.pdf",
-  },
-  {
-    title: "Prevention of Sexual Harassment (POSH) Policy",
-    description: "Measures and procedures to prevent and address sexual harassment at the workplace.",
-    href: "/documents/POLICY-HR-005 Prevention of Sexual Harassment Policy (1).pdf",
-  },
-  {
-    title: "Terms and Conditions – Sales",
-    description: "Standard terms and conditions governing our sales and commercial transactions.",
-    href: "/documents/Terms and Conditions_Sales (1).pdf",
-  },
-]
+async function getCompanyPolicies(): Promise<Policy[]> {
+  try {
+    const result = await pgPool.query(
+      `
+      SELECT id, title, slug, content, "policyType", "displayOrder", active, "createdAt", "updatedAt"
+      FROM "CompanyPolicy"
+      WHERE active = true
+      ORDER BY "displayOrder" ASC, "createdAt" DESC
+      `,
+    )
+    return result.rows
+  } catch (error) {
+    // Silently return empty array - page will show message
+    return []
+  }
+}
 
-export default function CompanyPoliciesPage() {
+export default async function CompanyPoliciesPage() {
+  const policies = await getCompanyPolicies()
+
   return (
     <>
       <Header />
@@ -63,29 +54,44 @@ export default function CompanyPoliciesPage() {
               Company Policies
             </h1>
             <p className="text-gray-600 mb-10 max-w-2xl">
-              Access and review our official company policies. Click on any policy card to open the
-              corresponding PDF document in a new tab.
+              Access and review our official company policies. Click on any policy to view details.
             </p>
 
-            <div className="grid gap-6 md:grid-cols-2">
-              {policyDocuments.map((policy) => (
-                <a
-                  key={policy.href}
-                  href={policy.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
-                    <CardHeader>
-                      <CardTitle className="text-lg md:text-xl">{policy.title}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-gray-600">{policy.description}</p>
-                    </CardContent>
-                  </Card>
-                </a>
-              ))}
-            </div>
+            {policies.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <p className="text-gray-500">No active policies available at this time.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-6 md:grid-cols-2">
+                {policies.map((policy) => (
+                  <Link
+                    key={policy.id}
+                    href={`/company-policies/${policy.slug}`}
+                  >
+                    <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
+                      <CardHeader>
+                        <CardTitle className="text-lg md:text-xl">{policy.title}</CardTitle>
+                        {policy.policyType && (
+                          <p className="text-xs text-gray-500 mt-1">{policy.policyType}</p>
+                        )}
+                      </CardHeader>
+                      <CardContent>
+                        <div 
+                          className="text-sm text-gray-600 line-clamp-3 prose prose-sm max-w-none"
+                          dangerouslySetInnerHTML={{ 
+                            __html: policy.content.length > 150 
+                              ? policy.content.substring(0, 150) + '...' 
+                              : policy.content 
+                          }}
+                        />
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </main>

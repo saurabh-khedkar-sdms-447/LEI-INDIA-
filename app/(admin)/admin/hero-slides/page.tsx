@@ -271,10 +271,20 @@ export default function AdminHeroSlidesPage() {
     try {
       setIsDeleting(true)
       setError(null)
+      
+      // Get CSRF token for state-changing operations
+      const csrfResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/csrf-token`)
+      const csrfData = await csrfResponse.json()
+      const csrfToken = csrfData.token
+      
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || ''}/api/hero-slides/${slideToDelete}`,
         {
           method: 'DELETE',
+          headers: {
+            'X-CSRF-Token': csrfToken,
+          },
+          credentials: 'include',
         }
       )
 
@@ -307,13 +317,20 @@ export default function AdminHeroSlidesPage() {
     const newOrder = targetSlide.displayOrder
 
     try {
+      // Get CSRF token for state-changing operations
+      const csrfResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/csrf-token`)
+      const csrfData = await csrfResponse.json()
+      const csrfToken = csrfData.token
+      
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || ''}/api/hero-slides/${id}`,
         {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken,
           },
+          credentials: 'include',
           body: JSON.stringify({ displayOrder: newOrder }),
         }
       )
@@ -329,7 +346,9 @@ export default function AdminHeroSlidesPage() {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken,
           },
+          credentials: 'include',
           body: JSON.stringify({ displayOrder: slide.displayOrder }),
         }
       )

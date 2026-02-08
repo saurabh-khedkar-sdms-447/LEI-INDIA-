@@ -96,7 +96,7 @@ export default function AdminPrincipalPartnersPage() {
 
   const fetchPartners = async () => {
     try {
-      const response = await fetch('/api/principal-partners')
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/principal-partners`)
       if (!response.ok) throw new Error('Failed to fetch partners')
       const data = await response.json()
       setPartners(Array.isArray(data) ? data : [])
@@ -141,8 +141,9 @@ export default function AdminPrincipalPartnersPage() {
       const formData = new FormData()
       formData.append('file', file)
 
-      const response = await fetch('/api/admin/upload', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/admin/upload`, {
         method: 'POST',
+        credentials: 'include',
         body: formData,
       })
 
@@ -158,28 +159,44 @@ export default function AdminPrincipalPartnersPage() {
   }
 
   const onSubmit = async (data: PartnerFormData) => {
-    if (!isAuthenticated) return
+    if (!isAuthenticated) {
+      alert('Authentication required. Please log in again.')
+      return
+    }
 
     try {
+      // Get CSRF token for state-changing operations
+      const csrfResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/csrf-token`)
+      const csrfData = await csrfResponse.json()
+      const csrfToken = csrfData.token
+
       const url = editingPartner
-        ? `/api/principal-partners/${editingPartner.id}`
-        : '/api/principal-partners'
+        ? `${process.env.NEXT_PUBLIC_API_URL || ''}/api/principal-partners/${editingPartner.id}`
+        : `${process.env.NEXT_PUBLIC_API_URL || ''}/api/principal-partners`
 
       const method = editingPartner ? 'PUT' : 'POST'
 
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken,
+        },
+        credentials: 'include',
         body: JSON.stringify(data),
       })
 
-      if (!response.ok) throw new Error('Failed to save partner')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to save partner' }))
+        throw new Error(errorData.error || errorData.details?.[0]?.message || 'Failed to save partner')
+      }
 
       setIsDialogOpen(false)
       fetchPartners()
       reset()
-    } catch {
-      alert('Failed to save partner')
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save partner. Please try again.'
+      alert(errorMessage)
     }
   }
 
@@ -187,15 +204,31 @@ export default function AdminPrincipalPartnersPage() {
     if (!isAuthenticated || !confirm('Are you sure you want to delete this partner?')) return
 
     try {
-      const response = await fetch(`/api/principal-partners/${id}`, {
-        method: 'DELETE',
-      })
+      // Get CSRF token for state-changing operations
+      const csrfResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/csrf-token`)
+      const csrfData = await csrfResponse.json()
+      const csrfToken = csrfData.token
 
-      if (!response.ok) throw new Error('Failed to delete partner')
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || ''}/api/principal-partners/${id}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'X-CSRF-Token': csrfToken,
+          },
+          credentials: 'include',
+        }
+      )
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to delete partner' }))
+        throw new Error(errorData.error || 'Failed to delete partner')
+      }
 
       fetchPartners()
-    } catch {
-      alert('Failed to delete partner')
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete partner. Please try again.'
+      alert(errorMessage)
     }
   }
 

@@ -94,7 +94,7 @@ async function getTechnicalSupportContent() {
     )
     return result.rows
   } catch (error) {
-    console.error('Failed to fetch technical support content:', error)
+    // Silently return empty array - page will show default content
     return []
   }
 }
