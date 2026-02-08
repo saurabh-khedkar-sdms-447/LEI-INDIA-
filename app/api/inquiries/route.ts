@@ -13,6 +13,7 @@ const inquirySchema = z.object({
   company: z.string().trim().optional(),
   subject: z.string().min(3, 'Subject must be at least 3 characters').trim(),
   message: z.string().min(10, 'Message must be at least 10 characters').trim(),
+  meetingRequest: z.boolean().optional().default(false),
 })
 
 const inquiryUpdateSchema = z.object({
@@ -44,14 +45,14 @@ export async function POST(req: NextRequest) {
     const result = await pgPool.query(
       `
       INSERT INTO "Inquiry" (
-        name, email, phone, company, subject, message, read, responded,
+        name, email, phone, company, subject, message, "meetingRequest", read, responded,
         "createdAt", "updatedAt"
       )
-      VALUES ($1, $2, $3, $4, $5, $6, false, false, NOW(), NOW())
-      RETURNING id, name, email, phone, company, subject, message, read, responded,
+      VALUES ($1, $2, $3, $4, $5, $6, $7, false, false, NOW(), NOW())
+      RETURNING id, name, email, phone, company, subject, message, "meetingRequest", read, responded,
                 "createdAt", "updatedAt"
       `,
-      [data.name, data.email, data.phone ?? null, data.company ?? null, data.subject, data.message],
+      [data.name, data.email, data.phone ?? null, data.company ?? null, data.subject, data.message, data.meetingRequest ?? false],
     )
 
     return NextResponse.json(result.rows[0], { status: 201 })
@@ -96,7 +97,7 @@ export const GET = requireAdmin(async (req: NextRequest) => {
       `
       WITH filtered_inquiries AS (
         SELECT 
-          id, name, email, phone, company, subject, message, read, responded,
+          id, name, email, phone, company, subject, message, "meetingRequest", read, responded,
           "createdAt", "updatedAt",
           COUNT(*) OVER() AS total
         FROM "Inquiry"

@@ -80,6 +80,7 @@ export default function ContactPage() {
         company: data.company,
         subject: 'Contact Form Inquiry',
         message: data.message,
+        meetingRequest: data.meetingRequest ?? false,
       }
       const result = await apiClient.post('/api/inquiries', payload)
 

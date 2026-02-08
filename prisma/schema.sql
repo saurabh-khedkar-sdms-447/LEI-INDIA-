@@ -129,6 +129,7 @@ CREATE TABLE IF NOT EXISTS "Inquiry" (
   company TEXT,
   subject TEXT NOT NULL,
   message TEXT NOT NULL,
+  "meetingRequest" BOOLEAN NOT NULL DEFAULT FALSE,
   read BOOLEAN NOT NULL DEFAULT FALSE,
   responded BOOLEAN NOT NULL DEFAULT FALSE,
   notes TEXT,
@@ -337,3 +338,29 @@ CREATE INDEX IF NOT EXISTS idx_technical_support_section ON "TechnicalSupportCon
 CREATE INDEX IF NOT EXISTS idx_company_policy_slug ON "CompanyPolicy"(slug);
 CREATE INDEX IF NOT EXISTS idx_company_policy_active ON "CompanyPolicy"(active);
 CREATE INDEX IF NOT EXISTS idx_returns_content_section ON "ReturnsContent"(section);
+
+-- ============================================================================
+-- MIGRATIONS: Schema changes for existing databases
+-- ============================================================================
+-- These migrations handle adding columns/tables to existing databases
+-- They are idempotent and safe to run multiple times
+
+-- Migration: Add meetingRequest column to Inquiry table
+-- Date: 2024
+-- Description: Adds meetingRequest boolean field to track online meeting requests from contact form
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 
+    FROM information_schema.columns 
+    WHERE table_name = 'Inquiry' 
+    AND column_name = 'meetingRequest'
+  ) THEN
+    ALTER TABLE "Inquiry" 
+    ADD COLUMN "meetingRequest" BOOLEAN NOT NULL DEFAULT FALSE;
+    
+    RAISE NOTICE 'Added meetingRequest column to Inquiry table';
+  ELSE
+    RAISE NOTICE 'meetingRequest column already exists in Inquiry table';
+  END IF;
+END $$;
