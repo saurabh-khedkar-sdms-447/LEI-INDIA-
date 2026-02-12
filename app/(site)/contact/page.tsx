@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { contactFormSchema, type ContactFormData } from '@/lib/zod-schemas'
 import { apiClient } from '@/lib/api-client'
@@ -45,15 +45,13 @@ export default function ContactPage() {
     handleSubmit,
     formState: { errors },
     reset,
-    watch,
+    control,
   } = useForm<ContactFormData>({
     resolver: zodResolver(contactFormSchema),
     defaultValues: {
       meetingRequest: false,
     },
   })
-
-  const meetingRequest = watch('meetingRequest')
 
   useEffect(() => {
     const fetchContactInfo = async () => {
@@ -219,19 +217,21 @@ export default function ContactPage() {
                       </div>
 
                       <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="meetingRequest"
-                          checked={meetingRequest || false}
-                          onCheckedChange={(checked) => {
-                            const { onChange } = register('meetingRequest')
-                            onChange({
-                              target: { value: checked === true },
-                            })
-                          }}
+                        <Controller
+                          name="meetingRequest"
+                          control={control}
+                          render={({ field }) => (
+                            <Checkbox
+                              id="meetingRequest"
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                              disabled={isSubmitting}
+                            />
+                          )}
                         />
-                        <Label htmlFor="meetingRequest" className="text-sm cursor-pointer">
+                        {/* <Label htmlFor="meetingRequest" className="text-sm cursor-pointer">
                           Request an online meeting
-                        </Label>
+                        </Label> */}
                       </div>
                       {errors.meetingRequest && (
                         <p className="text-sm text-red-500 mt-1">{errors.meetingRequest.message}</p>

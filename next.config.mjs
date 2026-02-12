@@ -10,6 +10,20 @@ const nextConfig = {
     formats: ['image/avif', 'image/webp'],
     deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+    // Allow unoptimized images for relative paths (served from public folder)
+    unoptimized: false,
+    // Allow images from any domain (for AWS S3, CloudFront, etc.)
+    // In production, images may be served from AWS domains
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**',
+      },
+      {
+        protocol: 'http',
+        hostname: '**',
+      },
+    ],
   },
   
   // Security headers (additional to Nginx)

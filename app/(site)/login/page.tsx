@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useForm } from 'react-hook-form'
+import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Header } from '@/components/shared/Header'
@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Loader2, Lock, User, Mail } from 'lucide-react'
 import { useUserAuth } from '@/store/user-auth-store'
 import Link from 'next/link'
@@ -18,6 +19,7 @@ import Link from 'next/link'
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
+  rememberMe: z.boolean().optional(),
 })
 
 type LoginFormData = z.infer<typeof loginSchema>
@@ -25,24 +27,30 @@ type LoginFormData = z.infer<typeof loginSchema>
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { login, isAuthenticated } = useUserAuth()
+  const { login, isAuthenticated, logout } = useUserAuth()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [hasLoggedOut, setHasLoggedOut] = useState(false)
 
-  // Check if already authenticated and redirect
+  // If already authenticated, logout and show login form
   useEffect(() => {
-    if (isAuthenticated) {
-      const redirect = searchParams.get('redirect') || '/rfq'
-      router.push(redirect)
+    if (isAuthenticated && !hasLoggedOut) {
+      logout().then(() => {
+        setHasLoggedOut(true)
+      })
     }
-  }, [isAuthenticated, router, searchParams])
+  }, [isAuthenticated, logout, hasLoggedOut])
 
   const {
     register,
     handleSubmit,
     formState: { errors },
+    control,
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
+    defaultValues: {
+      rememberMe: false,
+    },
   })
 
   const onSubmit = async (data: LoginFormData) => {
@@ -129,10 +137,17 @@ function LoginForm() {
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      id="remember"
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    <Controller
+                      name="rememberMe"
+                      control={control}
+                      render={({ field }) => (
+                        <Checkbox
+                          id="remember"
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          disabled={isLoading}
+                        />
+                      )}
                     />
                     <Label htmlFor="remember" className="text-sm cursor-pointer">
                       Remember me

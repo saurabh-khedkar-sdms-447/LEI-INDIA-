@@ -8,16 +8,26 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { ConnectorType, ConnectorCoding, PinCount, IPRating, ConnectorGender, Category } from '@/types'
 
-const connectorTypes: ConnectorType[] = ['M12', 'M8', 'RJ45']
-const codings: ConnectorCoding[] = ['A', 'B', 'D', 'X']
-const pins: PinCount[] = [3, 4, 5, 8, 12]
-const ipRatings: IPRating[] = ['IP67', 'IP68', 'IP20']
-const genders: ConnectorGender[] = ['Male', 'Female']
+interface FilterOptions {
+  connectorTypes: string[]
+  codings: string[]
+  ipRatings: string[]
+  pins: number[]
+  genders: string[]
+}
 
 export function FilterSidebar() {
   const { filters, updateFilters, clearFilters } = useProductFilters()
   const [categories, setCategories] = useState<Category[]>([])
   const [isLoadingCategories, setIsLoadingCategories] = useState(true)
+  const [filterOptions, setFilterOptions] = useState<FilterOptions>({
+    connectorTypes: [],
+    codings: [],
+    ipRatings: [],
+    pins: [],
+    genders: [],
+  })
+  const [isLoadingFilters, setIsLoadingFilters] = useState(true)
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -34,7 +44,31 @@ export function FilterSidebar() {
         setIsLoadingCategories(false)
       }
     }
+
+    const fetchFilterOptions = async () => {
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || window.location.origin
+        const response = await fetch(`${baseUrl}/api/products/filter-options`)
+        if (response.ok) {
+          const data = await response.json()
+          setFilterOptions({
+            connectorTypes: data.connectorTypes || [],
+            codings: data.codings || [],
+            ipRatings: data.ipRatings || [],
+            pins: data.pins || [],
+            genders: data.genders || [],
+          })
+        }
+      } catch (error) {
+        // Error handled silently - use empty arrays as fallback
+        console.error('Failed to fetch filter options:', error)
+      } finally {
+        setIsLoadingFilters(false)
+      }
+    }
+
     fetchCategories()
+    fetchFilterOptions()
   }, [])
 
   // Build hierarchical category structure
@@ -150,121 +184,151 @@ export function FilterSidebar() {
           {/* Connector Type */}
           <div>
             <Label className="text-sm font-semibold mb-3 block">Connector Type</Label>
-            <div className="space-y-2">
-              {connectorTypes.map((type) => (
-                <div key={type} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`type-${type}`}
-                    checked={filters.connectorType?.includes(type) || false}
-                    onCheckedChange={(checked) =>
-                      handleFilterChange('connectorType', type, checked as boolean)
-                    }
-                  />
-                  <Label
-                    htmlFor={`type-${type}`}
-                    className="text-sm font-normal cursor-pointer"
-                  >
-                    {type}
-                  </Label>
-                </div>
-              ))}
-            </div>
+            {isLoadingFilters ? (
+              <div className="text-sm text-gray-500">Loading...</div>
+            ) : filterOptions.connectorTypes.length > 0 ? (
+              <div className="space-y-2">
+                {filterOptions.connectorTypes.map((type) => (
+                  <div key={type} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`type-${type}`}
+                      checked={filters.connectorType?.includes(type as ConnectorType) || false}
+                      onCheckedChange={(checked) =>
+                        handleFilterChange('connectorType', type, checked as boolean)
+                      }
+                    />
+                    <Label
+                      htmlFor={`type-${type}`}
+                      className="text-sm font-normal cursor-pointer"
+                    >
+                      {type}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500">No connector types available</div>
+            )}
           </div>
 
           {/* Coding */}
           <div>
             <Label className="text-sm font-semibold mb-3 block">Coding</Label>
-            <div className="space-y-2">
-              {codings.map((coding) => (
-                <div key={coding} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`coding-${coding}`}
-                    checked={filters.coding?.includes(coding) || false}
-                    onCheckedChange={(checked) =>
-                      handleFilterChange('coding', coding, checked as boolean)
-                    }
-                  />
-                  <Label
-                    htmlFor={`coding-${coding}`}
-                    className="text-sm font-normal cursor-pointer"
-                  >
-                    {coding}-Code
-                  </Label>
-                </div>
-              ))}
-            </div>
+            {isLoadingFilters ? (
+              <div className="text-sm text-gray-500">Loading...</div>
+            ) : filterOptions.codings.length > 0 ? (
+              <div className="space-y-2">
+                {filterOptions.codings.map((coding) => (
+                  <div key={coding} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`coding-${coding}`}
+                      checked={filters.coding?.includes(coding as ConnectorCoding) || false}
+                      onCheckedChange={(checked) =>
+                        handleFilterChange('coding', coding, checked as boolean)
+                      }
+                    />
+                    <Label
+                      htmlFor={`coding-${coding}`}
+                      className="text-sm font-normal cursor-pointer"
+                    >
+                      {coding}-Code
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500">No codings available</div>
+            )}
           </div>
 
           {/* Pins */}
           <div>
             <Label className="text-sm font-semibold mb-3 block">Pin Count</Label>
-            <div className="space-y-2">
-              {pins.map((pin) => (
-                <div key={pin} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`pin-${pin}`}
-                    checked={filters.pins?.includes(pin) || false}
-                    onCheckedChange={(checked) =>
-                      handleFilterChange('pins', pin, checked as boolean)
-                    }
-                  />
-                  <Label
-                    htmlFor={`pin-${pin}`}
-                    className="text-sm font-normal cursor-pointer"
-                  >
-                    {pin} Pin
-                  </Label>
-                </div>
-              ))}
-            </div>
+            {isLoadingFilters ? (
+              <div className="text-sm text-gray-500">Loading...</div>
+            ) : filterOptions.pins.length > 0 ? (
+              <div className="space-y-2">
+                {filterOptions.pins.map((pin) => (
+                  <div key={pin} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`pin-${pin}`}
+                      checked={filters.pins?.includes(pin as PinCount) || false}
+                      onCheckedChange={(checked) =>
+                        handleFilterChange('pins', pin, checked as boolean)
+                      }
+                    />
+                    <Label
+                      htmlFor={`pin-${pin}`}
+                      className="text-sm font-normal cursor-pointer"
+                    >
+                      {pin} Pin
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500">No pin counts available</div>
+            )}
           </div>
 
           {/* IP Rating */}
           <div>
             <Label className="text-sm font-semibold mb-3 block">IP Rating</Label>
-            <div className="space-y-2">
-              {ipRatings.map((rating) => (
-                <div key={rating} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`ip-${rating}`}
-                    checked={filters.ipRating?.includes(rating) || false}
-                    onCheckedChange={(checked) =>
-                      handleFilterChange('ipRating', rating, checked as boolean)
-                    }
-                  />
-                  <Label
-                    htmlFor={`ip-${rating}`}
-                    className="text-sm font-normal cursor-pointer"
-                  >
-                    {rating}
-                  </Label>
-                </div>
-              ))}
-            </div>
+            {isLoadingFilters ? (
+              <div className="text-sm text-gray-500">Loading...</div>
+            ) : filterOptions.ipRatings.length > 0 ? (
+              <div className="space-y-2">
+                {filterOptions.ipRatings.map((rating) => (
+                  <div key={rating} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`ip-${rating}`}
+                      checked={filters.ipRating?.includes(rating as IPRating) || false}
+                      onCheckedChange={(checked) =>
+                        handleFilterChange('ipRating', rating, checked as boolean)
+                      }
+                    />
+                    <Label
+                      htmlFor={`ip-${rating}`}
+                      className="text-sm font-normal cursor-pointer"
+                    >
+                      {rating}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500">No IP ratings available</div>
+            )}
           </div>
 
           {/* Gender */}
           <div>
             <Label className="text-sm font-semibold mb-3 block">Gender</Label>
-            <div className="space-y-2">
-              {genders.map((gender) => (
-                <div key={gender} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`gender-${gender}`}
-                    checked={filters.gender?.includes(gender) || false}
-                    onCheckedChange={(checked) =>
-                      handleFilterChange('gender', gender, checked as boolean)
-                    }
-                  />
-                  <Label
-                    htmlFor={`gender-${gender}`}
-                    className="text-sm font-normal cursor-pointer"
-                  >
-                    {gender}
-                  </Label>
-                </div>
-              ))}
-            </div>
+            {isLoadingFilters ? (
+              <div className="text-sm text-gray-500">Loading...</div>
+            ) : filterOptions.genders.length > 0 ? (
+              <div className="space-y-2">
+                {filterOptions.genders.map((gender) => (
+                  <div key={gender} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`gender-${gender}`}
+                      checked={filters.gender?.includes(gender as ConnectorGender) || false}
+                      onCheckedChange={(checked) =>
+                        handleFilterChange('gender', gender, checked as boolean)
+                      }
+                    />
+                    <Label
+                      htmlFor={`gender-${gender}`}
+                      className="text-sm font-normal cursor-pointer"
+                    >
+                      {gender}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500">No genders available</div>
+            )}
           </div>
 
           {/* In Stock */}

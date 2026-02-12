@@ -14,7 +14,7 @@ interface UserAuthState {
   user: User | null
   isAuthenticated: boolean
   login: (user: User) => void
-  logout: () => void
+  logout: () => Promise<void>
 }
 
 export const useUserAuth = create<UserAuthState>()(
@@ -28,8 +28,17 @@ export const useUserAuth = create<UserAuthState>()(
         set({ user, isAuthenticated: true })
       },
 
-      logout: () => {
-        set({ user: null, isAuthenticated: false })
+      logout: async () => {
+        try {
+          // Call the logout API endpoint to clear the httpOnly cookie
+          const { apiClient } = await import('@/lib/api-client')
+          await apiClient.post('/api/users/logout')
+        } catch {
+          // Even if API call fails, clear local state
+        } finally {
+          // Always clear local state
+          set({ user: null, isAuthenticated: false })
+        }
       },
     }),
     {

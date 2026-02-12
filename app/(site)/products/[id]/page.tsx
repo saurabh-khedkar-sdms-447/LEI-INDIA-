@@ -12,6 +12,54 @@ import { AddToRFQButton } from "@/components/features/AddToRFQButton"
 import { Download, CheckCircle2 } from "lucide-react"
 import { pgPool } from "@/lib/pg"
 
+// Helper component for product images with proper URL construction
+// In production on AWS, relative paths are prefixed with NEXT_PUBLIC_API_URL
+function ProductImage({ src, alt, priority }: { src: string; alt: string; priority?: boolean }) {
+  // Construct image URL safely - handle both absolute URLs and relative paths
+  const getImageSrc = (imageUrl: string): string => {
+    // If already a full URL, use it directly
+    if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+      return imageUrl
+    }
+    
+    // For relative paths (starting with /), prefix with API URL in production
+    // This ensures images work correctly on AWS where they're served from the same domain
+    if (imageUrl.startsWith('/')) {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL
+      // In production (AWS), prefix with API URL to create full URL
+      // In development, use relative path (Next.js serves from public folder)
+      if (apiUrl) {
+        return `${apiUrl}${imageUrl}`
+      }
+      return imageUrl
+    }
+    
+    // Fallback: if no leading slash, add it
+    const normalized = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL
+    if (apiUrl) {
+      return `${apiUrl}${normalized}`
+    }
+    return normalized
+  }
+
+  const imageSrc = getImageSrc(src)
+  const isFullUrl = imageSrc.startsWith('http://') || imageSrc.startsWith('https://')
+
+  // Use Next.js Image component for all images
+  // unoptimized for relative paths, optimized for full URLs
+  return (
+    <Image
+      src={imageSrc}
+      alt={alt}
+      fill
+      className="object-cover"
+      priority={priority}
+      unoptimized={!isFullUrl}
+    />
+  )
+}
+
 interface ProductPageProps {
   params: { id: string }
 }
@@ -156,11 +204,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
             {/* Product Images */}
             <div>
               <div className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden mb-4">
-                <Image
+                <ProductImage
                   src={product.images[0] || '/images/placeholder.jpg'}
                   alt={product.mpn || product.description.substring(0, 50) || 'Product'}
-                  fill
-                  className="object-cover"
                   priority
                 />
               </div>
@@ -168,11 +214,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 <div className="grid grid-cols-4 gap-2">
                   {product.images.slice(1).map((image, index) => (
                     <div key={index} className="relative aspect-square bg-gray-100 rounded overflow-hidden">
-                      <Image
+                      <ProductImage
                         src={image}
                         alt={`${product.mpn || 'Product'} ${index + 2}`}
-                        fill
-                        className="object-cover"
                       />
                     </div>
                   ))}

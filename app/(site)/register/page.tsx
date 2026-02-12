@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useForm } from 'react-hook-form'
+import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Header } from '@/components/shared/Header'
@@ -52,15 +52,13 @@ function RegisterForm() {
     register,
     handleSubmit,
     formState: { errors },
-    watch,
+    control,
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
       acceptTerms: false,
     },
   })
-
-  const acceptTerms = watch('acceptTerms')
 
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true)
@@ -81,9 +79,8 @@ function RegisterForm() {
       // Store user info using the auth store (token is in httpOnly cookie)
       login(result.user)
       
-      // Redirect to requested page or RFQ page
-      const redirect = searchParams.get('redirect') || '/rfq'
-      router.push(redirect)
+      // Redirect to login page
+      router.push('/login')
     } catch (err: any) {
       setError(err?.message || 'Registration failed. Please try again.')
     } finally {
@@ -221,15 +218,17 @@ function RegisterForm() {
                 </div>
 
                 <div className="flex items-start space-x-2">
-                  <Checkbox
-                    id="acceptTerms"
-                    checked={acceptTerms}
-                    onCheckedChange={(checked) => {
-                      const { onChange } = register('acceptTerms')
-                      onChange({
-                        target: { value: checked === true },
-                      })
-                    }}
+                  <Controller
+                    name="acceptTerms"
+                    control={control}
+                    render={({ field }) => (
+                      <Checkbox
+                        id="acceptTerms"
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={isLoading}
+                      />
+                    )}
                   />
                   <Label htmlFor="acceptTerms" className="text-sm cursor-pointer">
                     I agree to the{' '}

@@ -127,6 +127,39 @@ export async function PUT(
     const body = await req.json()
     const parsed = productUpdateSchema.parse(body)
 
+    // Validate and normalize arrays to prevent JSON serialization errors
+    if (parsed.images !== undefined) {
+      if (typeof parsed.images === 'string') {
+        try {
+          parsed.images = JSON.parse(parsed.images)
+        } catch {
+          parsed.images = []
+        }
+      }
+      if (!Array.isArray(parsed.images)) {
+        parsed.images = []
+      }
+      // Filter out invalid entries
+      parsed.images = parsed.images.filter((img): img is string => typeof img === 'string' && img.trim().length > 0)
+    }
+
+    if (parsed.documents !== undefined) {
+      if (typeof parsed.documents === 'string') {
+        try {
+          parsed.documents = JSON.parse(parsed.documents)
+        } catch {
+          parsed.documents = []
+        }
+      }
+      if (!Array.isArray(parsed.documents)) {
+        parsed.documents = []
+      }
+      // Validate document structure
+      parsed.documents = parsed.documents.filter((doc): doc is { url: string; filename: string; size?: number } => {
+        return doc && typeof doc === 'object' && typeof doc.url === 'string' && doc.url.trim().length > 0
+      })
+    }
+
     const existingResult = await pgPool.query(
       `
       SELECT
@@ -149,10 +182,87 @@ export async function PUT(
       return NextResponse.json({ error: 'Product not found' }, { status: 404 })
     }
 
+    // Normalize existing.images and existing.documents to ensure they're arrays
+    // PostgreSQL JSONB columns are returned as JavaScript objects/arrays by pg library,
+    // but we need to ensure they're always arrays
+    const normalizeExistingArray = (value: any): any[] => {
+      if (!value) return []
+      if (Array.isArray(value)) return value
+      if (typeof value === 'string') {
+        try {
+          const parsed = JSON.parse(value)
+          return Array.isArray(parsed) ? parsed : []
+        } catch {
+          return []
+        }
+      }
+      return []
+    }
+
+    // Ensure existing arrays are properly normalized
+    if (existing.images !== undefined) {
+      existing.images = normalizeExistingArray(existing.images)
+    }
+    if (existing.documents !== undefined) {
+      existing.documents = normalizeExistingArray(existing.documents)
+    }
+
+    // Helper to convert empty strings to null for optional fields
+    const emptyToNull = (value: any): any => {
+      if (value === undefined) return undefined
+      if (typeof value === 'string' && value.trim().length === 0) return null
+      return value
+    }
+
     // Sanitize HTML content fields
     const sanitizedDescription = parsed.description !== undefined 
       ? sanitizeRichText(parsed.description) 
       : existing.description
+
+    // Prepare JSONB arrays with explicit serialization
+    const imagesArray = (() => {
+      let arr: string[] = []
+      if (parsed.images !== undefined) {
+        arr = Array.isArray(parsed.images) 
+          ? parsed.images.filter((img: unknown): img is string => typeof img === 'string' && img.trim().length > 0)
+          : []
+      } else {
+        arr = Array.isArray(existing.images) 
+          ? existing.images.filter((img: unknown): img is string => typeof img === 'string' && img.trim().length > 0)
+          : []
+      }
+      return arr
+    })()
+
+    const documentsArray = (() => {
+      let arr: Array<{ url: string; filename: string; size?: number }> = []
+      if (parsed.documents !== undefined) {
+        arr = Array.isArray(parsed.documents)
+          ? parsed.documents.filter((doc: unknown): doc is { url: string; filename: string; size?: number } => {
+              if (!doc || typeof doc !== 'object' || doc === null) return false
+              if (!('url' in doc)) return false
+              const url = (doc as { url: unknown }).url
+              if (typeof url !== 'string' || url.trim().length === 0) return false
+              return true
+            })
+          : []
+      } else {
+        arr = Array.isArray(existing.documents)
+          ? existing.documents.filter((doc: unknown): doc is { url: string; filename: string; size?: number } => {
+              if (!doc || typeof doc !== 'object' || doc === null) return false
+              if (!('url' in doc)) return false
+              const url = (doc as { url: unknown }).url
+              if (typeof url !== 'string' || url.trim().length === 0) return false
+              return true
+            })
+          : []
+      }
+      return arr
+    })()
+
+    // Serialize arrays to JSON strings for explicit JSONB casting
+    const imagesJson = JSON.stringify(imagesArray)
+    const documentsJson = JSON.stringify(documentsArray)
 
     const updatedResult = await pgPool.query(
       `
@@ -191,8 +301,8 @@ export async function PUT(
         "priceType" = $31,
         "inStock" = $32,
         "stockQuantity" = $33,
-        images = $34,
-        documents = $35,
+        images = $34::jsonb,
+        documents = $35::jsonb,
         "datasheetUrl" = $36,
         "drawingUrl" = $37,
         "updatedAt" = NOW()
@@ -215,40 +325,41 @@ export async function PUT(
         parsed.sku !== undefined ? parsed.sku : existing.sku,
         parsed.name !== undefined ? parsed.name : existing.name,
         sanitizedDescription,
-        parsed.categoryId !== undefined ? parsed.categoryId ?? null : existing.categoryId,
-        parsed.mpn !== undefined ? parsed.mpn ?? null : existing.mpn,
-        parsed.productType !== undefined ? parsed.productType ?? null : existing.productType,
-        parsed.coupling !== undefined ? parsed.coupling ?? null : existing.coupling,
+        parsed.categoryId !== undefined ? (parsed.categoryId ? parsed.categoryId : null) : existing.categoryId,
+        parsed.mpn !== undefined ? emptyToNull(parsed.mpn) : existing.mpn,
+        parsed.productType !== undefined ? emptyToNull(parsed.productType) : existing.productType,
+        parsed.coupling !== undefined ? emptyToNull(parsed.coupling) : existing.coupling,
         parsed.degreeOfProtection !== undefined ? parsed.degreeOfProtection ?? null : existing.ipRating,
-        parsed.wireCrossSection !== undefined ? parsed.wireCrossSection ?? null : existing.wireCrossSection,
-        parsed.temperatureRange !== undefined ? parsed.temperatureRange ?? null : existing.temperatureRange,
-        parsed.cableDiameter !== undefined ? parsed.cableDiameter ?? null : existing.cableDiameter,
-        parsed.cableMantleColor !== undefined ? parsed.cableMantleColor ?? null : existing.cableMantleColor,
-        parsed.cableMantleMaterial !== undefined ? parsed.cableMantleMaterial ?? null : existing.cableMantleMaterial,
-        parsed.cableLength !== undefined ? parsed.cableLength ?? null : existing.cableLength,
-        parsed.glandMaterial !== undefined ? parsed.glandMaterial ?? null : existing.glandMaterial,
-        parsed.housingMaterial !== undefined ? parsed.housingMaterial ?? null : existing.housingMaterial,
-        parsed.pinContact !== undefined ? parsed.pinContact ?? null : existing.pinContact,
-        parsed.socketContact !== undefined ? parsed.socketContact ?? null : existing.socketContact,
+        parsed.wireCrossSection !== undefined ? emptyToNull(parsed.wireCrossSection) : existing.wireCrossSection,
+        parsed.temperatureRange !== undefined ? emptyToNull(parsed.temperatureRange) : existing.temperatureRange,
+        parsed.cableDiameter !== undefined ? emptyToNull(parsed.cableDiameter) : existing.cableDiameter,
+        parsed.cableMantleColor !== undefined ? emptyToNull(parsed.cableMantleColor) : existing.cableMantleColor,
+        parsed.cableMantleMaterial !== undefined ? emptyToNull(parsed.cableMantleMaterial) : existing.cableMantleMaterial,
+        parsed.cableLength !== undefined ? emptyToNull(parsed.cableLength) : existing.cableLength,
+        parsed.glandMaterial !== undefined ? emptyToNull(parsed.glandMaterial) : existing.glandMaterial,
+        parsed.housingMaterial !== undefined ? emptyToNull(parsed.housingMaterial) : existing.housingMaterial,
+        parsed.pinContact !== undefined ? emptyToNull(parsed.pinContact) : existing.pinContact,
+        parsed.socketContact !== undefined ? emptyToNull(parsed.socketContact) : existing.socketContact,
         parsed.cableDragChainSuitable !== undefined ? parsed.cableDragChainSuitable ?? null : existing.cableDragChainSuitable,
-        parsed.tighteningTorqueMax !== undefined ? parsed.tighteningTorqueMax ?? null : existing.tighteningTorqueMax,
-        parsed.bendingRadiusFixed !== undefined ? parsed.bendingRadiusFixed ?? null : existing.bendingRadiusFixed,
-        parsed.bendingRadiusRepeated !== undefined ? parsed.bendingRadiusRepeated ?? null : existing.bendingRadiusRepeated,
-        parsed.contactPlating !== undefined ? parsed.contactPlating ?? null : existing.contactPlating,
-        parsed.operatingVoltage !== undefined ? parsed.operatingVoltage ?? null : existing.voltage,
-        parsed.ratedCurrent !== undefined ? parsed.ratedCurrent ?? null : existing.current,
+        parsed.tighteningTorqueMax !== undefined ? emptyToNull(parsed.tighteningTorqueMax) : existing.tighteningTorqueMax,
+        parsed.bendingRadiusFixed !== undefined ? emptyToNull(parsed.bendingRadiusFixed) : existing.bendingRadiusFixed,
+        parsed.bendingRadiusRepeated !== undefined ? emptyToNull(parsed.bendingRadiusRepeated) : existing.bendingRadiusRepeated,
+        parsed.contactPlating !== undefined ? emptyToNull(parsed.contactPlating) : existing.contactPlating,
+        parsed.operatingVoltage !== undefined ? emptyToNull(parsed.operatingVoltage) : existing.voltage,
+        parsed.ratedCurrent !== undefined ? emptyToNull(parsed.ratedCurrent) : existing.current,
         parsed.halogenFree !== undefined ? parsed.halogenFree ?? null : existing.halogenFree,
         parsed.connectorType !== undefined ? parsed.connectorType ?? null : existing.connectorType,
         parsed.code !== undefined ? parsed.code ?? null : existing.coding,
-        parsed.strippingForce !== undefined ? parsed.strippingForce ?? null : existing.strippingForce,
+        parsed.strippingForce !== undefined ? emptyToNull(parsed.strippingForce) : existing.strippingForce,
         parsed.price !== undefined ? parsed.price ?? null : existing.price,
         parsed.priceType !== undefined ? parsed.priceType : existing.priceType,
         parsed.inStock !== undefined ? parsed.inStock : existing.inStock,
         parsed.stockQuantity !== undefined ? parsed.stockQuantity ?? null : existing.stockQuantity,
-        parsed.images !== undefined ? parsed.images : existing.images,
-        parsed.documents !== undefined ? parsed.documents : (existing.documents || []),
-        parsed.datasheetUrl !== undefined ? parsed.datasheetUrl ?? null : existing.datasheetUrl,
-        parsed.drawingUrl !== undefined ? parsed.drawingUrl ?? null : existing.drawingUrl,
+        // Use pre-serialized JSON strings with explicit ::jsonb cast
+        imagesJson,
+        documentsJson,
+        parsed.datasheetUrl !== undefined ? emptyToNull(parsed.datasheetUrl) : existing.datasheetUrl,
+        parsed.drawingUrl !== undefined ? emptyToNull(parsed.drawingUrl) : existing.drawingUrl,
         params.id,
       ],
     )
@@ -281,8 +392,37 @@ export async function PUT(
         { status: 500 }
       )
     }
+
+    // Check if this is a JSON serialization error
+    if (error?.code === '22P02' || (error?.message && error.message.includes('invalid input syntax for type json'))) {
+      log.error('JSON serialization error details', {
+        error: error.message,
+        detail: error.detail,
+        where: error.where,
+      })
+      return NextResponse.json(
+        { 
+          error: 'Invalid data format',
+          message: 'Failed to serialize product data. Please check images and documents arrays.',
+          details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+        },
+        { status: 400 }
+      )
+    }
     
-    return NextResponse.json({ error: 'Failed to update product' }, { status: 400 })
+    // Return more detailed error in development, generic in production
+    const errorMessage = process.env.NODE_ENV === 'development' 
+      ? (error?.message || 'Failed to update product')
+      : 'Failed to update product'
+    
+    return NextResponse.json(
+      { 
+        error: errorMessage,
+        code: error?.code,
+        details: process.env.NODE_ENV === 'development' ? error?.detail : undefined,
+      },
+      { status: 400 }
+    )
   }
 }
 

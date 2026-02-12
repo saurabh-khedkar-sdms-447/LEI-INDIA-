@@ -93,7 +93,7 @@ export async function GET(req: NextRequest) {
       // Use trigram similarity for faster text search (requires pg_trgm extension)
       const searchTerm = search.trim()
       filters.push(
-        `(description % $${paramIndex} OR mpn % $${paramIndex + 1} OR description ILIKE $${paramIndex + 2} OR mpn ILIKE $${paramIndex + 3})`,
+        `(description % $${paramIndex}::text OR mpn % $${paramIndex + 1}::text OR description ILIKE $${paramIndex + 2} OR mpn ILIKE $${paramIndex + 3})`,
       )
       values.push(searchTerm, searchTerm, `%${searchTerm}%`, `%${searchTerm}%`)
       paramIndex += 4

@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { KineticText } from './KineticText'
 import Link from 'next/link'
+import Image from 'next/image'
 
 interface HeroSlide {
   id: string
@@ -124,12 +125,55 @@ export function HeroSlider() {
 
   const currentSlideData = slides[currentSlide]
 
+  // Construct image URL safely - handle both absolute URLs and relative paths
+  // In production on AWS, relative paths are prefixed with NEXT_PUBLIC_API_URL
+  const getImageSrc = (imageUrl: string): string => {
+    if (!imageUrl) return ''
+    
+    // If already a full URL, use it directly
+    if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+      return imageUrl
+    }
+    
+    // For relative paths (starting with /), prefix with API URL if available
+    // This ensures images work correctly on AWS where they're served from the same domain
+    if (imageUrl.startsWith('/')) {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL
+      // In production (AWS), prefix with API URL to create full URL
+      // In development, use relative path (Next.js serves from public folder)
+      return apiUrl ? `${apiUrl}${imageUrl}` : imageUrl
+    }
+    
+    // Fallback: if no leading slash, add it
+    const normalized = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL
+    return apiUrl ? `${apiUrl}${normalized}` : normalized
+  }
+
+  const imageSrc = currentSlideData.image ? getImageSrc(currentSlideData.image) : ''
+  const isFullUrl = imageSrc.startsWith('http://') || imageSrc.startsWith('https://')
+
   return (
     <section
       className="relative h-[600px] md:h-[700px] overflow-hidden bg-slate-900"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
+      {/* Background Image */}
+      {imageSrc && (
+        <div className="absolute inset-0 z-0">
+          <Image
+            src={imageSrc}
+            alt={currentSlideData.title}
+            fill
+            className="object-cover"
+            priority
+            unoptimized={!isFullUrl}
+          />
+          {/* Dark overlay for better text readability */}
+          <div className="absolute inset-0 bg-black/40" />
+        </div>
+      )}
       <div className="relative z-10 container mx-auto px-4 sm:px-6 lg:px-8 h-full flex items-center justify-center">
         <div className="max-w-3xl text-center">
           <AnimatePresence mode="wait">

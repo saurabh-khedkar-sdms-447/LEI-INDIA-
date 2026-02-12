@@ -14,7 +14,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useRFQStore } from '@/store/rfq-store'
+import { useUserAuth } from '@/store/user-auth-store'
 import { categories } from '@/lib/data'
+import { LogOut } from 'lucide-react'
 
 export function Header() {
   const router = useRouter()
@@ -22,6 +24,8 @@ export function Header() {
   const [searchQuery, setSearchQuery] = useState('')
   const [isMounted, setIsMounted] = useState(false)
   const totalItems = useRFQStore((state) => state.getTotalItems())
+  const { isAuthenticated, logout } = useUserAuth()
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
 
   useEffect(() => {
     setIsMounted(true)
@@ -108,9 +112,26 @@ export function Header() {
               </Button>
             </Link>
 
-            <Button variant="outline" className="hidden md:inline-flex" asChild>
-              <Link href="/login">Login</Link>
-            </Button>
+            {isAuthenticated ? (
+              <Button
+                variant="outline"
+                className="hidden md:inline-flex"
+                onClick={async () => {
+                  setIsLoggingOut(true)
+                  await logout()
+                  router.push('/login')
+                  setIsLoggingOut(false)
+                }}
+                disabled={isLoggingOut}
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                {isLoggingOut ? 'Logging out...' : 'Logout'}
+              </Button>
+            ) : (
+              <Button variant="outline" className="hidden md:inline-flex" asChild>
+                <Link href="/login">Login</Link>
+              </Button>
+            )}
 
             {/* Mobile Menu Button */}
             <Button
@@ -179,9 +200,27 @@ export function Header() {
               >
                 Contact
               </Link>
-              <Button variant="outline" className="w-full mt-4" asChild>
-                <Link href="/login">Login</Link>
-              </Button>
+              {isAuthenticated ? (
+                <Button
+                  variant="outline"
+                  className="w-full mt-4"
+                  onClick={async () => {
+                    setIsLoggingOut(true)
+                    await logout()
+                    router.push('/login')
+                    setMobileMenuOpen(false)
+                    setIsLoggingOut(false)
+                  }}
+                  disabled={isLoggingOut}
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  {isLoggingOut ? 'Logging out...' : 'Logout'}
+                </Button>
+              ) : (
+                <Button variant="outline" className="w-full mt-4" asChild>
+                  <Link href="/login">Login</Link>
+                </Button>
+              )}
             </div>
           </div>
         )}

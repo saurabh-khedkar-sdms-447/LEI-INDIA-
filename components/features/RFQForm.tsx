@@ -110,26 +110,6 @@ export function RFQForm({ items, onSuccess }: RFQFormProps) {
     }
   }
 
-  if (!isAuthenticated) {
-    return (
-      <div className="space-y-4">
-        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-          <p className="text-sm text-yellow-800 mb-4">
-            You need to login or register to submit a Request for Quote.
-          </p>
-          <div className="flex gap-2">
-            <Button asChild className="flex-1">
-              <Link href="/login?redirect=/rfq">Login</Link>
-            </Button>
-            <Button asChild variant="outline" className="flex-1">
-              <Link href="/register?redirect=/rfq">Register</Link>
-            </Button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   if (submitted) {
     return (
       <div className="text-center py-8">

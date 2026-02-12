@@ -32,6 +32,41 @@ export function ProductCard({ product }: ProductCardProps) {
     })
   }
 
+  // Construct image URL safely - handle both absolute URLs and relative paths
+  // In production on AWS, relative paths are prefixed with NEXT_PUBLIC_API_URL
+  const getImageSrc = (imageUrl: string | undefined): string => {
+    if (!imageUrl) {
+      // For placeholder, use relative path (served from public folder)
+      return '/images/placeholder.jpg'
+    }
+    
+    // If already a full URL, use it directly
+    if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+      return imageUrl
+    }
+    
+    // For relative paths (starting with /), prefix with API URL if available
+    // This ensures images work correctly on AWS where they're served from the same domain
+    if (imageUrl.startsWith('/')) {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL
+      // In production (AWS), prefix with API URL to create full URL
+      // In development, use relative path (Next.js serves from public folder)
+      return apiUrl ? `${apiUrl}${imageUrl}` : imageUrl
+    }
+    
+    // Fallback: if no leading slash, add it
+    const normalized = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL
+    return apiUrl ? `${apiUrl}${normalized}` : normalized
+  }
+
+  const imageUrl = product.images && product.images.length > 0 && product.images[0]
+    ? getImageSrc(product.images[0])
+    : '/images/placeholder.jpg'
+
+  // Determine if this is a full URL (for Next.js Image optimization)
+  const isFullUrl = imageUrl.startsWith('http://') || imageUrl.startsWith('https://')
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -44,12 +79,13 @@ export function ProductCard({ product }: ProductCardProps) {
         <div className="relative h-48 w-full bg-gray-100 overflow-hidden flex items-center justify-center">
           {product.images && product.images.length > 0 && product.images[0] && !imageError ? (
             <Image
-              src={product.images[0]}
+              src={imageUrl}
               alt={product.mpn || product.description.substring(0, 50) || 'Product'}
               fill
               className="object-cover"
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
               onError={() => setImageError(true)}
+              unoptimized={!isFullUrl}
             />
           ) : (
             <div className="flex items-center justify-center h-full w-full text-gray-400">

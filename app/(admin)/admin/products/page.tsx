@@ -45,6 +45,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { apiClient } from '@/lib/api-client'
+import { formatPriceSimple } from '@/lib/format-price'
 
 const productSchema = z.object({
   sku: z.string().min(1, 'SKU is required').trim(),
@@ -91,6 +92,57 @@ const productSchema = z.object({
 })
 
 type ProductFormData = z.infer<typeof productSchema>
+
+// Safe image preview component with error handling
+function ProductImagePreview({ url, index, onRemove }: { url: string; index: number; onRemove: () => void }) {
+  const [imageError, setImageError] = useState(false)
+  
+  // Construct image URL safely
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || ''
+  const imageSrc = url.startsWith('http') ? url : (apiUrl ? `${apiUrl}${url}` : url)
+  
+  return (
+    <div className="relative h-24 bg-gray-100 rounded border overflow-hidden">
+      {!imageError ? (
+        <Image
+          src={imageSrc}
+          alt={`Product image ${index + 1}`}
+          fill
+          className="object-cover"
+          onError={() => setImageError(true)}
+          unoptimized={imageSrc.startsWith('/')}
+        />
+      ) : (
+        <div className="flex items-center justify-center h-full w-full text-gray-400">
+          <svg
+            className="w-8 h-8"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+            />
+          </svg>
+        </div>
+      )}
+      <Button
+        type="button"
+        variant="destructive"
+        size="icon"
+        className="absolute top-1 right-1 h-6 w-6"
+        onClick={onRemove}
+        aria-label={`Remove image ${index + 1}`}
+      >
+        <X className="h-3 w-3" />
+      </Button>
+    </div>
+  )
+}
 
 export default function AdminProductsPage() {
   const { isAuthenticated } = useAdminAuth()
@@ -194,49 +246,91 @@ export default function AdminProductsPage() {
 
   const handleImageUpload = async (file: File) => {
     if (!isAuthenticated) {
-      alert('Authentication required. Please log in again.')
+      setError('Authentication required. Please log in again.')
       return
     }
 
-    // Validate file size (5MB limit)
+    // Validate file exists and is valid
+    if (!file || !(file instanceof File)) {
+      setError('Invalid file selected. Please try again.')
+      return
+    }
+
+    // Validate file size (5MB limit - note: server allows 10MB, but we enforce 5MB on client)
     if (file.size > 5 * 1024 * 1024) {
-      alert('Image size must be less than 5MB')
+      setError('Image size must be less than 5MB. Please compress the image and try again.')
       return
     }
 
     // Validate file type
-    if (!file.type.startsWith('image/')) {
-      alert('Please upload a valid image file')
+    if (!file.type || !file.type.startsWith('image/')) {
+      setError('Please upload a valid image file (JPEG, PNG, GIF, or WebP).')
       return
     }
 
     setUploadingImages(true)
+    setError(null) // Clear previous errors
+    
     try {
       const formData = new FormData()
       formData.append('image', file)
 
-      // Use fetch directly for FormData (apiClient doesn't handle FormData well)
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || ''}/api/admin/upload`,
-        {
-          method: 'POST',
-          credentials: 'include',
-          body: formData,
-        }
-      )
+      // Construct API URL safely
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || ''
+      const uploadUrl = apiUrl ? `${apiUrl}/api/admin/upload` : '/api/admin/upload'
 
+      // Use fetch directly for FormData (apiClient doesn't handle FormData well)
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      })
+
+      // Handle non-OK responses
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Upload failed' }))
-        throw new Error(errorData.error || 'Upload failed')
+        let errorMessage = 'Upload failed'
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorMessage
+        } catch {
+          // If response is not JSON, use status text
+          errorMessage = response.statusText || `Server returned error ${response.status}`
+        }
+        throw new Error(errorMessage)
       }
 
-      const data = await response.json()
-      const newImages = [...productImages, data.url]
+      // Parse response safely
+      let data: { url?: string; error?: string }
+      try {
+        data = await response.json()
+      } catch (parseError) {
+        throw new Error('Invalid response from server. Please try again.')
+      }
+
+      // Validate response data
+      if (!data || typeof data !== 'object') {
+        throw new Error('Invalid response format from server.')
+      }
+
+      if (data.error) {
+        throw new Error(data.error)
+      }
+
+      if (!data.url || typeof data.url !== 'string' || data.url.trim().length === 0) {
+        throw new Error('Server did not return a valid image URL.')
+      }
+
+      // Safely update images array
+      const currentImages = Array.isArray(productImages) ? productImages : []
+      const newImages = [...currentImages, data.url]
       setProductImages(newImages)
-      setValue('images', newImages)
+      setValue('images', newImages, { shouldValidate: true })
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to upload image. Please try again.'
-      alert(errorMessage)
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : 'Failed to upload image. Please check your connection and try again.'
+      setError(errorMessage)
+      console.error('Image upload error:', error)
     } finally {
       setUploadingImages(false)
     }
@@ -442,51 +536,84 @@ export default function AdminProductsPage() {
   }
 
   const openEditDialog = (product: Product) => {
-    setEditingProduct(product)
-    setProductImages(product.images || [])
-    setProductDocuments(product.documents || [])
-    setDatasheetUrl(product.datasheetUrl || '')
-    setDrawingUrl(product.drawingUrl || '')
-    reset({
-      sku: product.sku || '',
-      name: product.name || '',
-      mpn: product.mpn || '',
-      description: product.description || '',
-      categoryId: product.categoryId || undefined,
-      productType: product.productType || '',
-      coupling: product.coupling || '',
-      degreeOfProtection: product.degreeOfProtection || undefined,
-      wireCrossSection: product.wireCrossSection || '',
-      temperatureRange: product.temperatureRange || '',
-      cableDiameter: product.cableDiameter || '',
-      cableMantleColor: product.cableMantleColor || '',
-      cableMantleMaterial: product.cableMantleMaterial || '',
-      cableLength: product.cableLength || '',
-      glandMaterial: product.glandMaterial || '',
-      housingMaterial: product.housingMaterial || '',
-      pinContact: product.pinContact || '',
-      socketContact: product.socketContact || '',
-      cableDragChainSuitable: product.cableDragChainSuitable ?? false,
-      tighteningTorqueMax: product.tighteningTorqueMax || '',
-      bendingRadiusFixed: product.bendingRadiusFixed || '',
-      bendingRadiusRepeated: product.bendingRadiusRepeated || '',
-      contactPlating: product.contactPlating || '',
-      operatingVoltage: product.operatingVoltage || '',
-      ratedCurrent: product.ratedCurrent || '',
-      halogenFree: product.halogenFree ?? false,
-      connectorType: product.connectorType || undefined,
-      code: product.code || undefined,
-      strippingForce: product.strippingForce || '',
-      price: product.price,
-      priceType: product.priceType || 'per_unit',
-      inStock: product.inStock ?? false,
-      stockQuantity: product.stockQuantity,
-      images: product.images || [],
-      documents: product.documents || [],
-      datasheetUrl: product.datasheetUrl || '',
-      drawingUrl: product.drawingUrl || '',
-    })
-    setIsDialogOpen(true)
+    try {
+      // Validate product data before proceeding
+      if (!product || typeof product !== 'object') {
+        throw new Error('Invalid product data')
+      }
+
+      // Safely extract arrays with validation
+      const safeImages = Array.isArray(product.images) 
+        ? product.images.filter((img): img is string => typeof img === 'string' && img.trim().length > 0)
+        : []
+      
+      const safeDocuments = Array.isArray(product.documents)
+        ? product.documents.filter((doc): doc is { url: string; filename: string; size?: number } => 
+            doc && typeof doc === 'object' && typeof doc.url === 'string' && doc.url.trim().length > 0
+          )
+        : []
+
+      setEditingProduct(product)
+      setProductImages(safeImages)
+      setProductDocuments(safeDocuments)
+      setDatasheetUrl(typeof product.datasheetUrl === 'string' ? product.datasheetUrl : '')
+      setDrawingUrl(typeof product.drawingUrl === 'string' ? product.drawingUrl : '')
+      
+      reset({
+        sku: typeof product.sku === 'string' ? product.sku : '',
+        name: typeof product.name === 'string' ? product.name : '',
+        mpn: typeof product.mpn === 'string' ? product.mpn : '',
+        description: typeof product.description === 'string' ? product.description : '',
+        categoryId: typeof product.categoryId === 'string' && product.categoryId.trim().length > 0 ? product.categoryId : undefined,
+        productType: typeof product.productType === 'string' ? product.productType : '',
+        coupling: typeof product.coupling === 'string' ? product.coupling : '',
+        degreeOfProtection: product.degreeOfProtection && ['IP67', 'IP68', 'IP20'].includes(product.degreeOfProtection) 
+          ? product.degreeOfProtection 
+          : undefined,
+        wireCrossSection: typeof product.wireCrossSection === 'string' ? product.wireCrossSection : '',
+        temperatureRange: typeof product.temperatureRange === 'string' ? product.temperatureRange : '',
+        cableDiameter: typeof product.cableDiameter === 'string' ? product.cableDiameter : '',
+        cableMantleColor: typeof product.cableMantleColor === 'string' ? product.cableMantleColor : '',
+        cableMantleMaterial: typeof product.cableMantleMaterial === 'string' ? product.cableMantleMaterial : '',
+        cableLength: typeof product.cableLength === 'string' ? product.cableLength : '',
+        glandMaterial: typeof product.glandMaterial === 'string' ? product.glandMaterial : '',
+        housingMaterial: typeof product.housingMaterial === 'string' ? product.housingMaterial : '',
+        pinContact: typeof product.pinContact === 'string' ? product.pinContact : '',
+        socketContact: typeof product.socketContact === 'string' ? product.socketContact : '',
+        cableDragChainSuitable: typeof product.cableDragChainSuitable === 'boolean' ? product.cableDragChainSuitable : false,
+        tighteningTorqueMax: typeof product.tighteningTorqueMax === 'string' ? product.tighteningTorqueMax : '',
+        bendingRadiusFixed: typeof product.bendingRadiusFixed === 'string' ? product.bendingRadiusFixed : '',
+        bendingRadiusRepeated: typeof product.bendingRadiusRepeated === 'string' ? product.bendingRadiusRepeated : '',
+        contactPlating: typeof product.contactPlating === 'string' ? product.contactPlating : '',
+        operatingVoltage: typeof product.operatingVoltage === 'string' ? product.operatingVoltage : '',
+        ratedCurrent: typeof product.ratedCurrent === 'string' ? product.ratedCurrent : '',
+        halogenFree: typeof product.halogenFree === 'boolean' ? product.halogenFree : false,
+        connectorType: product.connectorType && ['M12', 'M8', 'RJ45'].includes(product.connectorType)
+          ? product.connectorType
+          : undefined,
+        code: product.code && ['A', 'B', 'D', 'X'].includes(product.code)
+          ? product.code
+          : undefined,
+        strippingForce: typeof product.strippingForce === 'string' ? product.strippingForce : '',
+        price: typeof product.price === 'number' ? product.price : (typeof product.price === 'string' ? parseFloat(product.price) : undefined),
+        priceType: product.priceType && ['per_unit', 'per_pack', 'per_bulk'].includes(product.priceType)
+          ? product.priceType
+          : 'per_unit',
+        inStock: typeof product.inStock === 'boolean' ? product.inStock : false,
+        stockQuantity: typeof product.stockQuantity === 'number' 
+          ? product.stockQuantity 
+          : (typeof product.stockQuantity === 'string' ? parseInt(product.stockQuantity, 10) : undefined),
+        images: safeImages,
+        documents: safeDocuments,
+        datasheetUrl: typeof product.datasheetUrl === 'string' ? product.datasheetUrl : '',
+        drawingUrl: typeof product.drawingUrl === 'string' ? product.drawingUrl : '',
+      })
+      setIsDialogOpen(true)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to open edit dialog'
+      setError(`Error loading product: ${errorMessage}. Please try again.`)
+      console.error('Error opening edit dialog:', error)
+    }
   }
 
   const onSubmit = async (data: ProductFormData) => {
@@ -660,20 +787,8 @@ export default function AdminProductsPage() {
                 </TableRow>
               ) : (
                 products.map((product) => {
-                  // Safely format price
-                  let priceDisplay = 'N/A'
-                  try {
-                    if (product.price != null) {
-                      const priceNum = typeof product.price === 'number' 
-                        ? product.price 
-                        : parseFloat(String(product.price))
-                      if (!isNaN(priceNum) && isFinite(priceNum)) {
-                        priceDisplay = `$${priceNum.toFixed(2)}`
-                      }
-                    }
-                  } catch {
-                    priceDisplay = 'N/A'
-                  }
+                  // Format price in Indian Rupees
+                  const priceDisplay = formatPriceSimple(product.price)
 
                   return (
                     <TableRow key={product.id}>
@@ -1047,25 +1162,21 @@ export default function AdminProductsPage() {
                   )}
                 </div>
                 <div className="grid grid-cols-4 gap-2">
-                  {productImages.map((url, index) => (
-                    <div key={index} className="relative h-24">
-                      <Image
-                        src={`${process.env.NEXT_PUBLIC_API_URL || ''}${url}`}
-                        alt={`Product ${index + 1}`}
-                        fill
-                        className="object-cover rounded border"
+                  {productImages.map((url, index) => {
+                    // Validate URL before rendering
+                    if (!url || typeof url !== 'string' || url.trim().length === 0) {
+                      return null
+                    }
+                    
+                    return (
+                      <ProductImagePreview
+                        key={`${url}-${index}`}
+                        url={url}
+                        index={index}
+                        onRemove={() => removeImage(index)}
                       />
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="icon"
-                        className="absolute top-1 right-1 h-6 w-6"
-                        onClick={() => removeImage(index)}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             </div>
