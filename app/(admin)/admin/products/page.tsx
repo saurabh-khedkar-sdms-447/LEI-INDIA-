@@ -163,6 +163,8 @@ export default function AdminProductsPage() {
   const [productToDelete, setProductToDelete] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | undefined>(undefined)
+  const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string | undefined>(undefined)
 
   const {
     register,
@@ -189,6 +191,28 @@ export default function AdminProductsPage() {
     fetchCategories()
   }, [])
 
+  // When categories load and we're editing, re-determine category/subcategory
+  useEffect(() => {
+    if (editingProduct && categories.length > 0 && isDialogOpen) {
+      if (editingProduct.categoryId && typeof editingProduct.categoryId === 'string' && editingProduct.categoryId.trim().length > 0) {
+        const category = categories.find(cat => cat.id === editingProduct.categoryId)
+        if (category) {
+          if (category.parentId) {
+            // It's a subcategory
+            setSelectedSubcategoryId(category.id)
+            setSelectedCategoryId(category.parentId)
+            setValue('categoryId', category.id)
+          } else {
+            // It's a parent category
+            setSelectedCategoryId(category.id)
+            setSelectedSubcategoryId(undefined)
+            setValue('categoryId', category.id)
+          }
+        }
+      }
+    }
+  }, [categories, editingProduct, isDialogOpen, setValue])
+
   const fetchCategories = async () => {
     try {
       const response = await fetch(
@@ -201,6 +225,25 @@ export default function AdminProductsPage() {
     } catch {
       // Silently fail - categories are optional
     }
+  }
+
+  // Get parent categories (categories without a parentId)
+  const getParentCategories = (): Category[] => {
+    return categories.filter(cat => !cat.parentId)
+  }
+
+  // Get subcategories for a given parent category
+  const getSubcategories = (parentId: string): Category[] => {
+    return categories.filter(cat => cat.parentId === parentId)
+  }
+
+  // Find the parent category for a given category (if it's a subcategory)
+  const findParentCategory = (categoryId: string): Category | undefined => {
+    const category = categories.find(cat => cat.id === categoryId)
+    if (category?.parentId) {
+      return categories.find(cat => cat.id === category.parentId)
+    }
+    return category
   }
 
   const fetchProducts = async () => {
@@ -521,6 +564,8 @@ export default function AdminProductsPage() {
     setProductDocuments([])
     setDatasheetUrl('')
     setDrawingUrl('')
+    setSelectedCategoryId(undefined)
+    setSelectedSubcategoryId(undefined)
     reset({
       sku: '',
       name: '',
@@ -558,6 +603,27 @@ export default function AdminProductsPage() {
       setProductDocuments(safeDocuments)
       setDatasheetUrl(typeof product.datasheetUrl === 'string' ? product.datasheetUrl : '')
       setDrawingUrl(typeof product.drawingUrl === 'string' ? product.drawingUrl : '')
+      
+      // Determine if categoryId is a parent or subcategory
+      let parentCategoryId: string | undefined = undefined
+      let subcategoryId: string | undefined = undefined
+      
+      if (product.categoryId && typeof product.categoryId === 'string' && product.categoryId.trim().length > 0) {
+        const category = categories.find(cat => cat.id === product.categoryId)
+        if (category) {
+          if (category.parentId) {
+            // It's a subcategory
+            subcategoryId = category.id
+            parentCategoryId = category.parentId
+          } else {
+            // It's a parent category
+            parentCategoryId = category.id
+          }
+        }
+      }
+      
+      setSelectedCategoryId(parentCategoryId)
+      setSelectedSubcategoryId(subcategoryId)
       
       reset({
         sku: typeof product.sku === 'string' ? product.sku : '',
@@ -676,6 +742,8 @@ export default function AdminProductsPage() {
       setProductDocuments([])
       setDatasheetUrl('')
       setDrawingUrl('')
+      setSelectedCategoryId(undefined)
+      setSelectedSubcategoryId(undefined)
     } catch (error: any) {
       // Handle validation errors with details
       let errorMessage = 'Failed to save product. Please try again.'
@@ -877,29 +945,71 @@ export default function AdminProductsPage() {
               )}
             </div>
 
-            <div>
-              <Label htmlFor="categoryId">Category</Label>
-              <Select
-                onValueChange={(value) => {
-                  // Convert "__none__" to undefined for "no category"
-                  setValue('categoryId', value === '__none__' ? undefined : value)
-                }}
-                value={watch('categoryId') || '__none__'}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a category" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[300px] overflow-y-auto">
-                  <SelectItem value="__none__">No Category</SelectItem>
-                  {categories.map((category) => (
-                    <SelectItem key={category.id} value={category.id}>
-                      {category.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.categoryId && (
-                <p className="text-sm text-red-500">{errors.categoryId.message}</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="categoryId">Category</Label>
+                <Select
+                  onValueChange={(value) => {
+                    if (value === '__none__') {
+                      setSelectedCategoryId(undefined)
+                      setSelectedSubcategoryId(undefined)
+                      setValue('categoryId', undefined)
+                    } else {
+                      setSelectedCategoryId(value)
+                      setSelectedSubcategoryId(undefined) // Reset subcategory when category changes
+                      // If no subcategory is selected, use the category ID
+                      setValue('categoryId', value)
+                    }
+                  }}
+                  value={selectedCategoryId || '__none__'}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px] overflow-y-auto">
+                    <SelectItem value="__none__">No Category</SelectItem>
+                    {getParentCategories().map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.categoryId && (
+                  <p className="text-sm text-red-500">{errors.categoryId.message}</p>
+                )}
+              </div>
+
+              {selectedCategoryId && (
+                <div>
+                  <Label htmlFor="subcategoryId">Subcategory</Label>
+                  <Select
+                    onValueChange={(value) => {
+                      if (value === '__none__') {
+                        setSelectedSubcategoryId(undefined)
+                        // Use parent category ID when subcategory is cleared
+                        setValue('categoryId', selectedCategoryId)
+                      } else {
+                        setSelectedSubcategoryId(value)
+                        // Use subcategory ID when subcategory is selected
+                        setValue('categoryId', value)
+                      }
+                    }}
+                    value={selectedSubcategoryId || '__none__'}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a subcategory (optional)" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px] overflow-y-auto">
+                      <SelectItem value="__none__">No Subcategory</SelectItem>
+                      {getSubcategories(selectedCategoryId).map((subcategory) => (
+                        <SelectItem key={subcategory.id} value={subcategory.id}>
+                          {subcategory.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               )}
             </div>
 
