@@ -3,8 +3,8 @@ import { z } from 'zod'
 export const blogSchema = z.object({
   title: z.string().min(1, 'Title is required').trim(),
   slug: z.string().min(1, 'Slug is required').trim().optional(),
-  excerpt: z.string().optional(),
-  content: z.string().optional(),
+  excerpt: z.string().min(1, 'Excerpt is required').trim(),
+  content: z.string().min(1, 'Content is required').trim(),
   image: z.string().url().optional().or(z.literal('')),
   published: z.boolean().default(false),
 })

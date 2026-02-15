@@ -43,8 +43,8 @@ import { z } from 'zod'
 
 const blogSchema = z.object({
   title: z.string().min(1, 'Title is required'),
-  excerpt: z.string().optional(),
-  content: z.string().optional(),
+  excerpt: z.string().min(1, 'Excerpt is required'),
+  content: z.string().min(1, 'Content is required'),
   image: z.string().optional().or(z.literal('')),
   published: z.boolean(),
 })
@@ -94,9 +94,13 @@ export default function AdminBlogsPage() {
     try {
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || ''}/api/blogs`,
+        {
+          credentials: 'include',
+        }
       )
       const data = await response.json()
-      setBlogs(Array.isArray(data) ? data : [])
+      // API returns { blogs: [...], pagination: {...} }
+      setBlogs(Array.isArray(data.blogs) ? data.blogs : (Array.isArray(data) ? data : []))
     } catch {
       setBlogs([])
     } finally {

@@ -6,18 +6,19 @@ import { Footer } from "@/components/shared/Footer"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { Calendar, User, ArrowRight } from "lucide-react"
+import { Calendar, ArrowRight } from "lucide-react"
 import Image from "next/image"
 
 interface BlogPost {
-  _id: string
+  id: string
   title: string
-  excerpt: string
-  author: string
-  category: string
+  slug: string
+  excerpt?: string
+  content?: string
   image?: string
-  publishedAt?: string
+  published: boolean
   createdAt: string
+  updatedAt: string
 }
 
 export default function BlogPage() {
@@ -32,7 +33,9 @@ export default function BlogPage() {
     try {
       const response = await fetch('/api/blogs')
       const data = await response.json()
-      setBlogPosts(Array.isArray(data) ? data : [])
+      // API returns { blogs: [...], pagination: {...} }
+      const blogs = Array.isArray(data.blogs) ? data.blogs : (Array.isArray(data) ? data : [])
+      setBlogPosts(blogs)
     } catch {
       setBlogPosts([])
     } finally {
@@ -76,7 +79,7 @@ export default function BlogPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {blogPosts.map((post) => (
-                <Card key={post._id} className="flex flex-col hover:shadow-lg transition-shadow">
+                <Card key={post.id} className="flex flex-col hover:shadow-lg transition-shadow">
                   <div className="relative h-48 bg-gradient-to-br from-primary/20 to-primary/5 overflow-hidden">
                     {post.image ? (
                       <Image
@@ -87,31 +90,22 @@ export default function BlogPage() {
                       />
                     ) : (
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-4xl font-bold text-primary/30">{post.category}</span>
+                        <span className="text-4xl font-bold text-primary/30">Blog</span>
                       </div>
                     )}
                   </div>
                   <CardHeader>
-                    <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
-                      <span className="px-2 py-1 bg-primary/10 text-primary rounded text-xs font-medium">
-                        {post.category}
-                      </span>
-                    </div>
                     <CardTitle className="line-clamp-2">{post.title}</CardTitle>
                     <CardDescription className="line-clamp-3 mt-2">
-                      {post.excerpt}
+                      {post.excerpt || 'No excerpt available'}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="flex-1 flex flex-col justify-between">
                     <div className="flex items-center gap-4 text-sm text-gray-500 mb-4">
                       <div className="flex items-center gap-1">
-                        <User className="h-4 w-4" />
-                        <span>{post.author}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
                         <Calendar className="h-4 w-4" />
                         <span>
-                          {new Date(post.publishedAt || post.createdAt).toLocaleDateString('en-US', {
+                          {new Date(post.createdAt).toLocaleDateString('en-US', {
                             year: 'numeric',
                             month: 'long',
                             day: 'numeric',
@@ -120,7 +114,7 @@ export default function BlogPage() {
                       </div>
                     </div>
                     <Button asChild variant="outline" className="w-full">
-                      <Link href={`/blog/${post._id}`}>
+                      <Link href={`/blog/${post.id}`}>
                         Read More
                         <ArrowRight className="h-4 w-4 ml-2" />
                       </Link>

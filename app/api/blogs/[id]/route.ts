@@ -51,16 +51,32 @@ export async function GET(
       return NextResponse.json({ error: 'Blog not found' }, { status: 404 })
     }
 
+    // Check if user is admin (via header or cookie)
+    let isAdmin = false
     const authHeader = req.headers.get('authorization')
-    if (!blog.published) {
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return NextResponse.json({ error: 'Blog not found' }, { status: 404 })
-      }
+    
+    // Check authorization header (for API clients)
+    if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7)
       const decoded = verifyToken(token)
-      if (!decoded || (decoded.role !== 'admin' && decoded.role !== 'superadmin')) {
-        return NextResponse.json({ error: 'Blog not found' }, { status: 404 })
+      if (decoded && (decoded.role === 'admin' || decoded.role === 'superadmin')) {
+        isAdmin = true
       }
+    }
+
+    // Also check cookies (for admin panel)
+    if (!isAdmin) {
+      const adminToken = req.cookies.get('admin_token')?.value
+      if (adminToken) {
+        const decoded = verifyToken(adminToken)
+        if (decoded && (decoded.role === 'admin' || decoded.role === 'superadmin')) {
+          isAdmin = true
+        }
+      }
+    }
+
+    if (!blog.published && !isAdmin) {
+      return NextResponse.json({ error: 'Blog not found' }, { status: 404 })
     }
 
     return NextResponse.json(blog)
