@@ -6,6 +6,7 @@ import { sanitizeRichText } from '@/lib/sanitize'
 import { rateLimit } from '@/lib/rate-limit'
 import { csrfProtection } from '@/lib/csrf'
 import { log } from '@/lib/logger'
+import { isValidUUID } from '@/lib/validation'
 
 // GET /api/products - list products with cursor-based pagination and filters
 export async function GET(req: NextRequest) {
@@ -25,7 +26,6 @@ export async function GET(req: NextRequest) {
     
     // Cursor-based pagination: cursor is the last product id from previous page
     const cursor = searchParams.get('cursor')
-    const { isValidUUID } = await import('@/lib/validation')
     const validCursor = cursor && isValidUUID(cursor) ? cursor : null
 
     const idsParam = searchParams.get('ids')
@@ -126,11 +126,13 @@ export async function GET(req: NextRequest) {
     if (search) {
       // Search across name, sku, description, and mpn fields (handle NULL mpn)
       const searchTerm = search.trim()
-      filters.push(
-        `(name ILIKE $${paramIndex} OR sku ILIKE $${paramIndex + 1} OR description ILIKE $${paramIndex + 2} OR (mpn IS NOT NULL AND mpn ILIKE $${paramIndex + 3}))`,
-      )
-      values.push(`%${searchTerm}%`, `%${searchTerm}%`, `%${searchTerm}%`, `%${searchTerm}%`)
-      paramIndex += 4
+      if (searchTerm) {
+        filters.push(
+          `(name ILIKE $${paramIndex} OR sku ILIKE $${paramIndex + 1} OR description ILIKE $${paramIndex + 2} OR (mpn IS NOT NULL AND mpn ILIKE $${paramIndex + 3}))`,
+        )
+        values.push(`%${searchTerm}%`, `%${searchTerm}%`, `%${searchTerm}%`, `%${searchTerm}%`)
+        paramIndex += 4
+      }
     }
 
     const whereClause = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : ''

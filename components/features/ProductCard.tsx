@@ -12,6 +12,8 @@ import { useRFQStore } from '@/store/rfq-store'
 import { useComparisonStore } from '@/store/comparison-store'
 import { Product } from '@/types'
 import { CheckCircle2, FileText, Scale } from 'lucide-react'
+import { ImageLightbox } from '@/components/features/ImageLightbox'
+import { ProductDetailsModal } from '@/components/features/ProductDetailsModal'
 
 interface ProductCardProps {
   product: Product
@@ -19,6 +21,9 @@ interface ProductCardProps {
 
 export function ProductCard({ product }: ProductCardProps) {
   const [imageError, setImageError] = useState(false)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false)
   const addItem = useRFQStore((state) => state.addItem)
   const { items, toggleItem } = useComparisonStore()
   const isSelectedForCompare = items.some((i) => i.id === product.id)
@@ -30,6 +35,18 @@ export function ProductCard({ product }: ProductCardProps) {
       name: product.description.substring(0, 50) || product.mpn || product.id,
       quantity: 1,
     })
+  }
+
+  const handleImageClick = () => {
+    if (product.images && product.images.length > 0) {
+      setLightboxIndex(0)
+      setLightboxOpen(true)
+    }
+  }
+
+  const handleMPNClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setDetailsModalOpen(true)
   }
 
   // Construct image URL safely - handle both absolute URLs and relative paths
@@ -76,7 +93,19 @@ export function ProductCard({ product }: ProductCardProps) {
       transition={{ duration: 0.3 }}
     >
       <Card className="h-full flex flex-col hover:shadow-lg transition-shadow">
-        <div className="relative h-48 w-full bg-gray-100 overflow-hidden flex items-center justify-center">
+        <div 
+          className="relative aspect-square w-full bg-gray-100 overflow-hidden flex items-center justify-center cursor-pointer"
+          onClick={handleImageClick}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              handleImageClick()
+            }
+          }}
+          aria-label="View enlarged image"
+        >
           {product.images && product.images.length > 0 && product.images[0] && !imageError ? (
             <Image
               src={imageUrl}
@@ -111,7 +140,21 @@ export function ProductCard({ product }: ProductCardProps) {
             <div>
               <CardTitle className="text-lg line-clamp-2">{product.mpn || product.description.substring(0, 50)}</CardTitle>
               {product.mpn && (
-                <CardDescription className="text-sm">MPN: {product.mpn}</CardDescription>
+                <CardDescription 
+                  className="text-sm cursor-pointer hover:text-primary transition-colors"
+                  onClick={handleMPNClick}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      handleMPNClick(e as any)
+                    }
+                  }}
+                  aria-label="View product details"
+                >
+                  MPN: {product.mpn}
+                </CardDescription>
               )}
             </div>
             <div className="flex items-center gap-1">
@@ -170,6 +213,23 @@ export function ProductCard({ product }: ProductCardProps) {
           </Button>
         </CardFooter>
       </Card>
+
+      {/* Image Lightbox */}
+      {product.images && product.images.length > 0 && (
+        <ImageLightbox
+          images={product.images}
+          currentIndex={lightboxIndex}
+          open={lightboxOpen}
+          onOpenChange={setLightboxOpen}
+        />
+      )}
+
+      {/* Product Details Modal */}
+      <ProductDetailsModal
+        productId={product.id}
+        open={detailsModalOpen}
+        onOpenChange={setDetailsModalOpen}
+      />
     </motion.div>
   )
 }

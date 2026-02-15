@@ -54,7 +54,21 @@ const productSchema = z.object({
   description: z.string().min(1, 'Description is required'),
   productType: z.string().optional(),
   coupling: z.string().optional(),
-  degreeOfProtection: z.enum(['IP67', 'IP68', 'IP20']).optional(),
+  degreeOfProtection: z.union([
+    z.enum(['IP67', 'IP68', 'IP20']),
+    z.array(z.enum(['IP67', 'IP68', 'IP20'])),
+    z.string(),
+  ]).optional().transform((val) => {
+    if (!val) return undefined
+    if (Array.isArray(val)) {
+      return val.length > 0 ? val.join(',') : undefined
+    }
+    if (typeof val === 'string') {
+      // If it's already a comma-separated string, return as is
+      return val
+    }
+    return val
+  }),
   wireCrossSection: z.string().optional(),
   temperatureRange: z.string().optional(),
   cableDiameter: z.string().optional(),
@@ -633,9 +647,20 @@ export default function AdminProductsPage() {
         categoryId: typeof product.categoryId === 'string' && product.categoryId.trim().length > 0 ? product.categoryId : undefined,
         productType: typeof product.productType === 'string' ? product.productType : '',
         coupling: typeof product.coupling === 'string' ? product.coupling : '',
-        degreeOfProtection: product.degreeOfProtection && ['IP67', 'IP68', 'IP20'].includes(product.degreeOfProtection) 
-          ? product.degreeOfProtection 
-          : undefined,
+        degreeOfProtection: (() => {
+          const ipRating = product.degreeOfProtection
+          if (!ipRating) return undefined
+          // Handle comma-separated string from database
+          if (typeof ipRating === 'string') {
+            const ratings = ipRating.split(',').map(v => v.trim()).filter(Boolean)
+            return ratings.filter(r => ['IP67', 'IP68', 'IP20'].includes(r))
+          }
+          // Handle single value
+          if (['IP67', 'IP68', 'IP20'].includes(ipRating)) {
+            return [ipRating]
+          }
+          return undefined
+        })(),
         wireCrossSection: typeof product.wireCrossSection === 'string' ? product.wireCrossSection : '',
         temperatureRange: typeof product.temperatureRange === 'string' ? product.temperatureRange : '',
         cableDiameter: typeof product.cableDiameter === 'string' ? product.cableDiameter : '',
@@ -703,11 +728,24 @@ export default function AdminProductsPage() {
         return
       }
 
+      // Convert IP rating array to comma-separated string if needed
+      let degreeOfProtection: string | undefined = undefined
+      if (data.degreeOfProtection) {
+        if (Array.isArray(data.degreeOfProtection)) {
+          degreeOfProtection = data.degreeOfProtection.length > 0 
+            ? data.degreeOfProtection.join(',') 
+            : undefined
+        } else if (typeof data.degreeOfProtection === 'string') {
+          degreeOfProtection = data.degreeOfProtection
+        }
+      }
+
       const productData = {
         ...data,
         sku: data.sku.trim(),
         name: data.name.trim(),
         description: data.description.trim(),
+        degreeOfProtection,
         images: productImages || [],
         documents: productDocuments || [],
         datasheetUrl: datasheetUrl || undefined,
@@ -1074,20 +1112,51 @@ export default function AdminProductsPage() {
               </div>
 
               <div>
-                <Label htmlFor="degreeOfProtection">Degree of Protection</Label>
-                <Select
-                  onValueChange={(value) => setValue('degreeOfProtection', value as any)}
-                  value={watch('degreeOfProtection') || ''}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select degree of protection" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="IP67">IP67</SelectItem>
-                    <SelectItem value="IP68">IP68</SelectItem>
-                    <SelectItem value="IP20">IP20</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label className="text-sm font-semibold mb-3 block">Degree of Protection (IP Rating)</Label>
+                <div className="space-y-2">
+                  {['IP67', 'IP68', 'IP20'].map((rating) => {
+                    const currentValue = watch('degreeOfProtection')
+                    // Handle both array and comma-separated string
+                    const currentArray = Array.isArray(currentValue)
+                      ? currentValue
+                      : typeof currentValue === 'string' && currentValue
+                        ? currentValue.split(',').map(v => v.trim()).filter(Boolean)
+                        : []
+                    const isChecked = currentArray.includes(rating)
+                    
+                    return (
+                      <div key={rating} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`ip-rating-${rating}`}
+                          checked={isChecked}
+                          onCheckedChange={(checked) => {
+                            const current = watch('degreeOfProtection')
+                            const currentArray = Array.isArray(current)
+                              ? current
+                              : typeof current === 'string' && current
+                                ? current.split(',').map(v => v.trim()).filter(Boolean)
+                                : []
+                            
+                            let newArray: string[]
+                            if (checked) {
+                              newArray = [...currentArray, rating]
+                            } else {
+                              newArray = currentArray.filter((v) => v !== rating)
+                            }
+                            
+                            setValue('degreeOfProtection', newArray.length > 0 ? newArray : undefined, { shouldValidate: true })
+                          }}
+                        />
+                        <Label
+                          htmlFor={`ip-rating-${rating}`}
+                          className="text-sm font-normal cursor-pointer"
+                        >
+                          {rating}
+                        </Label>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
 
               <div>

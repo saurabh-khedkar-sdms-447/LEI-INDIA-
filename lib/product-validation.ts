@@ -10,7 +10,21 @@ export const productSchema = z.object({
   categoryId: uuidSchema.optional(),
   productType: z.string().optional(),
   coupling: z.string().optional(),
-  degreeOfProtection: z.enum(['IP67', 'IP68', 'IP20']).optional(),
+  degreeOfProtection: z.union([
+    z.enum(['IP67', 'IP68', 'IP20']),
+    z.array(z.enum(['IP67', 'IP68', 'IP20'])),
+    z.string(),
+  ]).optional().transform((val) => {
+    if (!val) return undefined
+    if (Array.isArray(val)) {
+      return val.length > 0 ? val.join(',') : undefined
+    }
+    if (typeof val === 'string') {
+      // If it's already a comma-separated string, return as is
+      return val
+    }
+    return val
+  }),
   wireCrossSection: z.string().optional(),
   temperatureRange: z.string().optional(),
   cableDiameter: z.string().optional(),
