@@ -61,8 +61,9 @@ export default function CareersPage() {
         throw new Error(errorData.error || 'Failed to fetch careers')
       }
       const data = await response.json()
-      // Ensure data is an array
-      setJobOpenings(Array.isArray(data) ? data : [])
+      // API returns { careers: [...], pagination: {...} }
+      const careersArray = Array.isArray(data.careers) ? data.careers : (Array.isArray(data) ? data : [])
+      setJobOpenings(careersArray)
     } catch {
       setJobOpenings([])
     } finally {
@@ -172,9 +173,11 @@ export default function CareersPage() {
                           </div>
                         </div>
                         <Button asChild>
-                          <Link href={`/careers/${job.id}`}>
+                          <a 
+                            href={`mailto:info@leiindias.com?subject=Application for ${encodeURIComponent(job.title)}&body=Dear Hiring Manager,%0D%0A%0D%0AI am interested in applying for the position of ${encodeURIComponent(job.title)}.%0D%0A%0D%0APlease find my resume attached.%0D%0A%0D%0AThank you for your consideration.%0D%0A%0D%0ABest regards`}
+                          >
                             Apply Now
-                          </Link>
+                          </a>
                         </Button>
                       </div>
                     </CardHeader>
@@ -201,7 +204,7 @@ export default function CareersPage() {
               <CardContent>
                 <div className="flex items-center gap-2 text-gray-600 mb-4">
                   <Mail className="h-5 w-5" />
-                  <span>careers@leiindias.com</span>
+                  <span>info@leiindias.com</span>
                 </div>
                 <Button asChild>
                   <Link href="/contact">

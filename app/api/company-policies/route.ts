@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { pgPool } from '@/lib/pg'
+import { pgPool, queryWithRetry } from '@/lib/pg'
 import { requireAdmin } from '@/lib/auth-middleware'
 import { companyPolicySchema, generateSlug } from '@/lib/cms-validation'
 import { rateLimit } from '@/lib/rate-limit'
@@ -27,15 +27,22 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const result = await pgPool.query(
+    const result = await queryWithRetry(
       `
-      SELECT id, title, slug, content, "policyType", "displayOrder", active, "createdAt", "updatedAt"
+      SELECT id, title, slug, content, "policyType", attachments, "displayOrder", active, "createdAt", "updatedAt"
       FROM "CompanyPolicy"
       ${isAdmin ? '' : 'WHERE active = true'}
       ORDER BY "displayOrder" ASC, "createdAt" DESC
       `,
+      undefined,
+      'fetch company policies',
     )
-    return NextResponse.json(result.rows)
+    // Normalize attachments to always be an array
+    const policies = result.rows.map((row) => ({
+      ...row,
+      attachments: Array.isArray(row.attachments) ? row.attachments : (row.attachments ? [row.attachments] : []),
+    }))
+    return NextResponse.json(policies)
   } catch (error: any) {
     log.error('Failed to fetch company policies', error)
     return NextResponse.json(
@@ -68,9 +75,10 @@ export const POST = requireAdmin(async (req: NextRequest) => {
     const slug = parsed.slug || generateSlug(parsed.title)
 
     // Check if slug already exists
-    const existingSlug = await pgPool.query(
+    const existingSlug = await queryWithRetry(
       `SELECT id FROM "CompanyPolicy" WHERE slug = $1 LIMIT 1`,
       [slug],
+      'check slug exists',
     )
     if (existingSlug.rows.length > 0) {
       return NextResponse.json(
@@ -80,23 +88,26 @@ export const POST = requireAdmin(async (req: NextRequest) => {
     }
 
     const sanitizedContent = sanitizeRichText(parsed.content)
+    const attachments = parsed.attachments || []
 
-    const result = await pgPool.query(
+    const result = await queryWithRetry(
       `
       INSERT INTO "CompanyPolicy" (
-        title, slug, content, "policyType", "displayOrder", active, "createdAt", "updatedAt"
+        title, slug, content, "policyType", attachments, "displayOrder", active, "createdAt", "updatedAt"
       )
-      VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-      RETURNING id, title, slug, content, "policyType", "displayOrder", active, "createdAt", "updatedAt"
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+      RETURNING id, title, slug, content, "policyType", attachments, "displayOrder", active, "createdAt", "updatedAt"
       `,
       [
         parsed.title,
         slug,
         sanitizedContent,
         parsed.policyType || null,
+        JSON.stringify(attachments),
         parsed.displayOrder,
         parsed.active,
       ],
+      'create company policy',
     )
 
     return NextResponse.json(result.rows[0], { status: 201 })

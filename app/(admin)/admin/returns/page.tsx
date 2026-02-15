@@ -267,7 +267,7 @@ export default function AdminReturnsPage() {
               <Input
                 id="section"
                 {...register('section')}
-                placeholder="e.g., hero, return-process, return-policy, important-info"
+                placeholder="e.g., hero, return-process, return-policy, important-info, cta"
                 disabled={!!editingContent}
               />
               {errors.section && (

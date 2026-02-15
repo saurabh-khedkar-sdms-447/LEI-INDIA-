@@ -90,6 +90,7 @@ export default async function ReturnsPage() {
   const returnProcessContent = getContentBySection(contents, 'return-process')
   const returnPolicyContent = getContentBySection(contents, 'return-policy')
   const importantInfoContent = getContentBySection(contents, 'important-info')
+  const ctaContent = getContentBySection(contents, 'cta')
 
   return (
     <>
@@ -260,20 +261,36 @@ export default async function ReturnsPage() {
         {/* CTA Section */}
         <section className="py-16 bg-primary text-primary-foreground">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Ready to Start a Return?
-            </h2>
-            <p className="text-lg mb-8 opacity-90">
-              Contact our customer service team to begin the return process
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button asChild variant="secondary" size="lg">
-                <Link href="/contact">Contact Customer Service</Link>
-              </Button>
-              <Button asChild variant="outline" size="lg" className="bg-transparent border-white text-white hover:bg-white/10">
-                <Link href="/customer-service">View Customer Service</Link>
-              </Button>
-            </div>
+            {ctaContent ? (
+              <>
+                {ctaContent.title && (
+                  <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                    {ctaContent.title}
+                  </h2>
+                )}
+                <div 
+                  className="prose prose-lg max-w-none prose-invert mb-8"
+                  dangerouslySetInnerHTML={{ __html: ctaContent.content }}
+                />
+              </>
+            ) : (
+              <>
+                <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                  Ready to Start a Return?
+                </h2>
+                <p className="text-lg mb-8 opacity-90">
+                  Contact our customer service team to begin the return process
+                </p>
+                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                  <Button asChild variant="secondary" size="lg">
+                    <Link href="/contact">Contact Customer Service</Link>
+                  </Button>
+                  <Button asChild variant="outline" size="lg" className="bg-transparent border-white text-white hover:bg-white/10">
+                    <Link href="/customer-service">View Customer Service</Link>
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </section>
       </main>

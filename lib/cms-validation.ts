@@ -58,6 +58,12 @@ export const companyPolicySchema = z.object({
   slug: z.string().min(1, 'Slug is required'),
   content: z.string().min(1, 'Content is required'),
   policyType: z.string().optional().or(z.literal('')),
+  attachments: z.array(z.object({
+    url: z.string(),
+    filename: z.string().optional(),
+    type: z.enum(['image', 'document']).optional(),
+    size: z.number().optional(),
+  })).optional().default([]),
   displayOrder: z.number().int().min(0).default(0),
   active: z.boolean().default(true),
 })

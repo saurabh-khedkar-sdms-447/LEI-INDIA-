@@ -97,14 +97,18 @@ export default function AdminCareersPage() {
     try {
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || ''}/api/careers`,
+        {
+          credentials: 'include', // Include cookies for admin authentication
+        },
       )
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Failed to fetch careers' }))
         throw new Error(errorData.error || 'Failed to fetch careers')
       }
       const data = await response.json()
-      // Ensure data is an array
-      setCareers(Array.isArray(data) ? data : [])
+      // API returns { careers: [...], pagination: {...} }
+      const careersArray = Array.isArray(data.careers) ? data.careers : (Array.isArray(data) ? data : [])
+      setCareers(careersArray)
     } catch {
       setCareers([])
     } finally {

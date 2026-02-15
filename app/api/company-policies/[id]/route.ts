@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { pgPool } from '@/lib/pg'
+import { pgPool, queryWithRetry } from '@/lib/pg'
 import { companyPolicySchema, generateSlug } from '@/lib/cms-validation'
 import { rateLimit } from '@/lib/rate-limit'
 import { csrfProtection } from '@/lib/csrf'
@@ -23,20 +23,28 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
     }
 
-    const result = await pgPool.query(
+    const result = await queryWithRetry(
       `
-      SELECT id, title, slug, content, "policyType", "displayOrder", active, "createdAt", "updatedAt"
+      SELECT id, title, slug, content, "policyType", attachments, "displayOrder", active, "createdAt", "updatedAt"
       FROM "CompanyPolicy"
       WHERE id = $1
       `,
       [params.id],
+      'fetch company policy by id',
     )
 
     if (result.rows.length === 0) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    return NextResponse.json(result.rows[0])
+    // Normalize attachments to always be an array
+    const policy = {
+      ...result.rows[0],
+      attachments: Array.isArray(result.rows[0].attachments) 
+        ? result.rows[0].attachments 
+        : (result.rows[0].attachments ? [result.rows[0].attachments] : []),
+    }
+    return NextResponse.json(policy)
   } catch (error: any) {
     log.error('Failed to fetch company policy', error)
     return NextResponse.json(
@@ -77,9 +85,10 @@ export async function PUT(
     const slug = parsed.slug || generateSlug(parsed.title)
 
     // Check if slug already exists for another record
-    const existingSlug = await pgPool.query(
+    const existingSlug = await queryWithRetry(
       `SELECT id FROM "CompanyPolicy" WHERE slug = $1 AND id != $2 LIMIT 1`,
       [slug, params.id],
+      'check slug exists for update',
     )
     if (existingSlug.rows.length > 0) {
       return NextResponse.json(
@@ -89,8 +98,9 @@ export async function PUT(
     }
 
     const sanitizedContent = sanitizeRichText(parsed.content)
+    const attachments = parsed.attachments || []
 
-    const result = await pgPool.query(
+    const result = await queryWithRetry(
       `
       UPDATE "CompanyPolicy"
       SET
@@ -98,28 +108,38 @@ export async function PUT(
         slug = $2,
         content = $3,
         "policyType" = $4,
-        "displayOrder" = $5,
-        active = $6,
+        attachments = $5,
+        "displayOrder" = $6,
+        active = $7,
         "updatedAt" = NOW()
-      WHERE id = $7
-      RETURNING id, title, slug, content, "policyType", "displayOrder", active, "createdAt", "updatedAt"
+      WHERE id = $8
+      RETURNING id, title, slug, content, "policyType", attachments, "displayOrder", active, "createdAt", "updatedAt"
       `,
       [
         parsed.title,
         slug,
         sanitizedContent,
         parsed.policyType || null,
+        JSON.stringify(attachments),
         parsed.displayOrder,
         parsed.active,
         params.id,
       ],
+      'update company policy',
     )
 
     if (result.rows.length === 0) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    return NextResponse.json(result.rows[0])
+    // Normalize attachments to always be an array
+    const policy = {
+      ...result.rows[0],
+      attachments: Array.isArray(result.rows[0].attachments) 
+        ? result.rows[0].attachments 
+        : (result.rows[0].attachments ? [result.rows[0].attachments] : []),
+    }
+    return NextResponse.json(policy)
   } catch (error: any) {
     if (error?.name === 'ZodError') {
       return NextResponse.json(
@@ -166,9 +186,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
     }
 
-    const result = await pgPool.query(
+    const result = await queryWithRetry(
       `DELETE FROM "CompanyPolicy" WHERE id = $1 RETURNING id`,
       [params.id],
+      'delete company policy',
     )
 
     if (result.rows.length === 0) {

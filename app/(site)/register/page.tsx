@@ -23,7 +23,9 @@ const registerSchema = z.object({
   confirmPassword: z.string(),
   company: z.string().min(2, 'Company name is required'),
   phone: z.string().min(10, 'Please enter a valid phone number'),
-  acceptTerms: z.boolean().refine((val) => val === true, {
+  acceptTerms: z.boolean({
+    required_error: 'You must accept the terms and conditions',
+  }).refine((val) => val === true, {
     message: 'You must accept the terms and conditions',
   }),
 }).refine((data) => data.password === data.confirmPassword, {
@@ -217,33 +219,39 @@ function RegisterForm() {
                   )}
                 </div>
 
-                <div className="flex items-start space-x-2">
-                  <Controller
-                    name="acceptTerms"
-                    control={control}
-                    render={({ field }) => (
-                      <Checkbox
-                        id="acceptTerms"
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        disabled={isLoading}
-                      />
-                    )}
-                  />
-                  <Label htmlFor="acceptTerms" className="text-sm cursor-pointer">
-                    I agree to the{' '}
-                    <Link href="/privacy" className="text-primary hover:underline">
-                      Terms and Conditions
-                    </Link>{' '}
-                    and{' '}
-                    <Link href="/privacy" className="text-primary hover:underline">
-                      Privacy Policy
-                    </Link>
-                  </Label>
+                <div className="space-y-2">
+                  <div className="flex items-start space-x-2">
+                    <Controller
+                      name="acceptTerms"
+                      control={control}
+                      render={({ field }) => (
+                        <Checkbox
+                          id="acceptTerms"
+                          checked={field.value || false}
+                          onCheckedChange={(checked) => {
+                            // Normalize to boolean: onCheckedChange can return boolean | "indeterminate"
+                            field.onChange(checked === true)
+                          }}
+                          disabled={isLoading}
+                          className="mt-0.5"
+                        />
+                      )}
+                    />
+                    <Label htmlFor="acceptTerms" className="text-sm cursor-pointer leading-relaxed">
+                      I agree to the{' '}
+                      <Link href="/company-policies" className="text-primary hover:underline font-medium">
+                        Terms and Conditions
+                      </Link>{' '}
+                      and{' '}
+                      <Link href="/privacy" className="text-primary hover:underline font-medium">
+                        Privacy Policy
+                      </Link>
+                    </Label>
+                  </div>
+                  {errors.acceptTerms && (
+                    <p className="text-sm text-red-500 ml-6">{errors.acceptTerms.message}</p>
+                  )}
                 </div>
-                {errors.acceptTerms && (
-                  <p className="text-sm text-red-500">{errors.acceptTerms.message}</p>
-                )}
 
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? (

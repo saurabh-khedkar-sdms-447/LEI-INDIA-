@@ -73,9 +73,65 @@ function createPool(): Pool {
 // Pool will be created lazily after database is ensured to exist
 let poolInstance: Pool | null = null
 
+// Track if monitoring is already set up to avoid duplicate intervals
+let monitoringInterval: NodeJS.Timeout | null = null
+
 function getPool(): Pool {
   if (!poolInstance) {
     poolInstance = createPool()
+    
+    // Add event listeners to monitor connection pool usage
+    poolInstance.on('connect', (client) => {
+      if (process.env.NODE_ENV === 'development') {
+        const stats = {
+          total: poolInstance!.totalCount,
+          idle: poolInstance!.idleCount,
+          waiting: poolInstance!.waitingCount,
+        }
+        // Only log if there are active connections or waiting requests
+        if (stats.total > 0 || stats.waiting > 0) {
+          console.log(`[DB Pool] Client connected.`, stats)
+        }
+      }
+    })
+    
+    poolInstance.on('remove', (client) => {
+      if (process.env.NODE_ENV === 'development') {
+        const stats = {
+          total: poolInstance!.totalCount,
+          idle: poolInstance!.idleCount,
+          waiting: poolInstance!.waitingCount,
+        }
+        if (stats.total > 0 || stats.waiting > 0) {
+          console.log(`[DB Pool] Client removed.`, stats)
+        }
+      }
+    })
+    
+    poolInstance.on('error', (err: any, client) => {
+      console.error('[DB Pool] Unexpected error on idle client', err)
+      // If it's a connection exhaustion error, log pool stats
+      if (err?.code === '53300') {
+        console.error(`[DB Pool] Connection exhausted! Total: ${poolInstance!.totalCount}, Idle: ${poolInstance!.idleCount}, Waiting: ${poolInstance!.waitingCount}`)
+      }
+    })
+    
+    // Log pool stats periodically in development (only set up once)
+    if (process.env.NODE_ENV === 'development' && !monitoringInterval) {
+      monitoringInterval = setInterval(() => {
+        if (poolInstance) {
+          const stats = {
+            total: poolInstance.totalCount,
+            idle: poolInstance.idleCount,
+            waiting: poolInstance.waitingCount,
+          }
+          // Only log if there are active connections or waiting requests
+          if (stats.total > 0 || stats.waiting > 0) {
+            console.log(`[DB Pool Stats]`, stats)
+          }
+        }
+      }, 30000) // Every 30 seconds
+    }
   }
   return poolInstance
 }

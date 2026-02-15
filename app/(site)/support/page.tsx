@@ -53,35 +53,6 @@ const supportOptions = [
   },
 ]
 
-const supportTopics = [
-  {
-    category: "Installation & Setup",
-    topics: [
-      "M12 Connector Installation Guide",
-      "RJ45 Patch Cord Wiring",
-      "PROFINET Configuration",
-      "Network Setup & Troubleshooting",
-    ],
-  },
-  {
-    category: "Product Specifications",
-    topics: [
-      "Technical Datasheets",
-      "Pin Configurations",
-      "Environmental Ratings",
-      "Compatibility Information",
-    ],
-  },
-  {
-    category: "Troubleshooting",
-    topics: [
-      "Connection Issues",
-      "Signal Problems",
-      "Compatibility Issues",
-      "Performance Optimization",
-    ],
-  },
-]
 
 async function getTechnicalSupportContent() {
   try {
@@ -103,10 +74,89 @@ function getContentBySection(contents: any[], section: string) {
   return contents.find(c => c.section === section)
 }
 
+function formatSupportTopicContent(content: string): string {
+  if (!content || typeof content !== 'string') {
+    return ''
+  }
+  
+  const trimmed = content.trim()
+  if (!trimmed) {
+    return ''
+  }
+  
+  // Remove any existing HTML tags to get clean text for processing
+  const textOnly = trimmed.replace(/<[^>]*>/g, '').trim()
+  
+  // If content is plain text (no HTML tags), convert to list format
+  if (!trimmed.includes('<') && !trimmed.includes('>')) {
+    const lines = trimmed.split('\n').filter(line => line.trim())
+    if (lines.length > 0) {
+      return `<ul class="space-y-2 list-none m-0 p-0">${lines.map(line => `<li class="flex items-start gap-2 text-gray-600"><span class="text-primary mt-1 font-bold">•</span><span>${line.trim()}</span></li>`).join('')}</ul>`
+    }
+    // Even single word/line should be in a list
+    return `<ul class="space-y-2 list-none m-0 p-0"><li class="flex items-start gap-2 text-gray-600"><span class="text-primary mt-1 font-bold">•</span><span>${trimmed}</span></li></ul>`
+  }
+  
+  // If content has HTML, check if it's a list
+  if (trimmed.includes('<ul') || trimmed.includes('<li')) {
+    let formatted = trimmed
+    
+    // Style <ul> tags
+    formatted = formatted.replace(/<ul[^>]*>/gi, '<ul class="space-y-2 list-none m-0 p-0">')
+    
+    // Style <li> tags - wrap content with bullet if not already present
+    formatted = formatted.replace(/<li[^>]*>(.*?)<\/li>/gis, (match, innerContent) => {
+      const innerTrimmed = innerContent.trim()
+      // Check if bullet already exists
+      if (innerTrimmed.includes('•') || innerTrimmed.includes('<span class="text-primary')) {
+        // Already has bullet styling, just ensure proper classes
+        return match.replace(/<li[^>]*>/, '<li class="flex items-start gap-2 text-gray-600">')
+      }
+      // Add bullet styling
+      return `<li class="flex items-start gap-2 text-gray-600"><span class="text-primary mt-1 font-bold">•</span><span>${innerTrimmed}</span></li>`
+    })
+    
+    return formatted
+  }
+  
+  // If HTML but not a list, extract text and convert to list
+  const lines = textOnly.split('\n').filter(line => line.trim())
+  if (lines.length > 0) {
+    return `<ul class="space-y-2 list-none m-0 p-0">${lines.map(line => `<li class="flex items-start gap-2 text-gray-600"><span class="text-primary mt-1 font-bold">•</span><span>${line.trim()}</span></li>`).join('')}</ul>`
+  }
+  
+  // Fallback: wrap any content in list
+  return `<ul class="space-y-2 list-none m-0 p-0"><li class="flex items-start gap-2 text-gray-600"><span class="text-primary mt-1 font-bold">•</span><span>${textOnly || trimmed}</span></li></ul>`
+}
+
 export default async function TechnicalSupportPage() {
   const contents = await getTechnicalSupportContent()
   const heroContent = getContentBySection(contents, 'hero')
+  const supportOptionsContent = getContentBySection(contents, 'support-options')
   const contactContent = getContentBySection(contents, 'contact-info')
+  
+  // Get all support-topics content entries (can be multiple for cards)
+  const supportTopicsContent = contents
+    .filter(c => c.section === 'support-topics')
+    .sort((a, b) => {
+      // Sort by displayOrder first, then by createdAt
+      if (a.displayOrder !== b.displayOrder) {
+        return a.displayOrder - b.displayOrder
+      }
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    })
+  
+  // Get all other content sections that don't match known sections
+  const knownSections = ['hero', 'support-options', 'support-topics', 'contact-info']
+  const otherContent = contents
+    .filter(c => !knownSections.includes(c.section))
+    .sort((a, b) => {
+      // Sort by displayOrder first, then by createdAt
+      if (a.displayOrder !== b.displayOrder) {
+        return a.displayOrder - b.displayOrder
+      }
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    })
 
   return (
     <>
@@ -143,67 +193,93 @@ export default async function TechnicalSupportPage() {
         {/* Support Options */}
         <section className="py-16 bg-white">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-                How We Can Help
-              </h2>
-              <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                Access technical resources and get expert support
-              </p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {supportOptions.map((option, index) => {
-                const Icon = option.icon
-                return (
-                  <Card key={index} className="hover:shadow-lg transition-shadow">
-                    <CardHeader>
-                      <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                        <Icon className="h-8 w-8 text-primary" />
-                      </div>
-                      <CardTitle className="text-lg">{option.title}</CardTitle>
-                      <CardDescription>{option.description}</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      {/* <Button asChild variant="outline" className="w-full">
-                        <Link href={option.link}>Access Resource</Link>
-                      </Button> */}
-                    </CardContent>
-                  </Card>
-                )
-              })}
-            </div>
+            {supportOptionsContent ? (
+              <div className="max-w-4xl mx-auto">
+                {supportOptionsContent.title && (
+                  <div className="text-center mb-12">
+                    <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+                      {supportOptionsContent.title}
+                    </h2>
+                  </div>
+                )}
+                <div 
+                  className="prose prose-lg max-w-none"
+                  dangerouslySetInnerHTML={{ __html: supportOptionsContent.content }}
+                />
+              </div>
+            ) : (
+              <>
+                <div className="text-center mb-12">
+                  <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+                    How We Can Help
+                  </h2>
+                  <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                    Access technical resources and get expert support
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {supportOptions.map((option, index) => {
+                    const Icon = option.icon
+                    return (
+                      <Card key={index} className="hover:shadow-lg transition-shadow">
+                        <CardHeader>
+                          <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                            <Icon className="h-8 w-8 text-primary" />
+                          </div>
+                          <CardTitle className="text-lg">{option.title}</CardTitle>
+                          <CardDescription>{option.description}</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          {/* <Button asChild variant="outline" className="w-full">
+                            <Link href={option.link}>Access Resource</Link>
+                          </Button> */}
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+                </div>
+              </>
+            )}
           </div>
         </section>
 
         {/* Support Topics */}
-        <section className="py-16 bg-gray-50">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="max-w-4xl mx-auto">
-              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-8 text-center">
-                Popular Support Topics
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {supportTopics.map((category, index) => (
-                  <Card key={index}>
-                    <CardHeader>
-                      <CardTitle className="text-lg">{category.category}</CardTitle>
+        {supportTopicsContent.length > 0 && (
+          <section className="py-16 bg-gray-50">
+            <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="text-center mb-12">
+                <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+                  Popular Support Topics
+                </h2>
+                <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                  Explore our comprehensive support resources and guides
+                </p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
+                {supportTopicsContent.map((topic) => (
+                  <Card 
+                    key={topic.id} 
+                    className="hover:shadow-xl transition-all duration-300 border border-gray-200 bg-white h-full flex flex-col"
+                  >
+                    <CardHeader className="pb-4">
+                      {topic.title && (
+                        <CardTitle className="text-lg font-bold text-gray-900 leading-tight">
+                          {topic.title}
+                        </CardTitle>
+                      )}
                     </CardHeader>
-                    <CardContent>
-                      <ul className="space-y-2">
-                        {category.topics.map((topic, topicIndex) => (
-                          <li key={topicIndex} className="text-sm text-gray-600 flex items-start gap-2">
-                            <span className="text-primary mt-1">•</span>
-                            <span>{topic}</span>
-                          </li>
-                        ))}
-                      </ul>
+                    <CardContent className="flex-1 pt-0">
+                      <div 
+                        className="text-sm text-gray-700 leading-relaxed"
+                        dangerouslySetInnerHTML={{ __html: formatSupportTopicContent(topic.content || '') }}
+                      />
                     </CardContent>
                   </Card>
                 ))}
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* Contact Support */}
         <section className="py-16 bg-white">
@@ -250,6 +326,29 @@ export default async function TechnicalSupportPage() {
             </div>
           </div>
         </section>
+
+        {/* Additional Content Sections */}
+        {otherContent.length > 0 && (
+          <>
+            {otherContent.map((content) => (
+              <section key={content.id} className="py-16 bg-white">
+                <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+                  <div className="max-w-4xl mx-auto">
+                    {content.title && (
+                      <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-8 text-center">
+                        {content.title}
+                      </h2>
+                    )}
+                    <div 
+                      className="prose prose-lg max-w-none"
+                      dangerouslySetInnerHTML={{ __html: content.content }}
+                    />
+                  </div>
+                </div>
+              </section>
+            ))}
+          </>
+        )}
 
         {/* CTA Section */}
         {/* <section className="py-16 bg-primary text-primary-foreground">

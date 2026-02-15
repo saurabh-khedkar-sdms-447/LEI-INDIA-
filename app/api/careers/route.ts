@@ -30,11 +30,23 @@ export async function GET(req: NextRequest) {
     const authHeader = req.headers.get('authorization')
     let isAdmin = false
 
+    // Check authorization header (for API clients)
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7)
       const decoded = verifyToken(token)
       if (decoded && (decoded.role === 'admin' || decoded.role === 'superadmin')) {
         isAdmin = true
+      }
+    }
+
+    // Also check cookies (for admin panel)
+    if (!isAdmin) {
+      const adminToken = req.cookies.get('admin_token')?.value
+      if (adminToken) {
+        const decoded = verifyToken(adminToken)
+        if (decoded && (decoded.role === 'admin' || decoded.role === 'superadmin')) {
+          isAdmin = true
+        }
       }
     }
 

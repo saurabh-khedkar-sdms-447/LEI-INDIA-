@@ -96,9 +96,24 @@ export const POST = requireAdmin(async (req: NextRequest) => {
       )
     }
 
+    // Handle connection pool exhaustion specifically
+    if (error?.code === '53300') {
+      log.error('Database connection pool exhausted', error)
+      return NextResponse.json(
+        { 
+          error: 'Database connection limit reached. Please try again in a moment.',
+          code: 'CONNECTION_POOL_EXHAUSTED',
+        },
+        { status: 503 }, // Service Unavailable
+      )
+    }
+
     log.error('Failed to create technical support content', error)
     return NextResponse.json(
-      { error: 'Failed to create technical support content' },
+      { 
+        error: 'Failed to create technical support content',
+        details: process.env.NODE_ENV === 'development' ? error?.message : undefined,
+      },
       { status: 500 },
     )
   }
