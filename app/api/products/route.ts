@@ -159,8 +159,11 @@ export async function GET(req: NextRequest) {
       total = parseInt(countResult.rows[0].total, 10)
     }
 
-    // Optimized cursor-based query using composite index (categoryId, id)
-    // Select only required columns to reduce data transfer
+    // Optimized cursor-based query using composite indexes
+    // - Uses idx_product_categoryid_id_asc for category + cursor pagination
+    // - Uses idx_product_in_stock_id_asc for inStock filtering
+    // - Select only required columns to reduce data transfer
+    // Note: ORDER BY id ASC is required for cursor pagination consistency
     const queryValues = [...values, limit + 1] // Fetch one extra to check if there's a next page
     const productsResult = await pgPool.query(
       `

@@ -10,83 +10,25 @@ import { Category, Product } from "@/types"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { CheckCircle2, HeadphonesIcon, Package, Globe } from "lucide-react"
-import { log } from "@/lib/logger"
-import { pgPool } from "@/lib/pg"
+import { fetchProducts, fetchCategories } from "@/lib/data-fetching"
 
 export const metadata: Metadata = {
   title: "Home",
   description: "LEI Indias - Professional B2B supplier of M12, M8, and RJ45 industrial connectors, cables, and PROFINET products.",
 }
 
-// Force dynamic rendering to ensure fresh data on each request
-export const dynamic = 'force-dynamic'
-
-async function getProducts(): Promise<Product[]> {
-  try {
-    // Optimized: Direct database query eliminates HTTP overhead
-    // Using prepared statement for better performance
-    const result = await pgPool.query(
-      `
-      SELECT
-        id, sku, name, category, description, "technicalDescription", coding, pins,
-        "ipRating", gender, "connectorType", material, voltage, current,
-        "temperatureRange", "wireGauge", "cableLength", price, "priceType",
-        "inStock", "stockQuantity", images, documents, "datasheetUrl",
-        "createdAt", "updatedAt"
-      FROM "Product"
-      WHERE "inStock" = true
-      ORDER BY "createdAt" DESC
-      LIMIT 6
-      `,
-    )
-    return result.rows
-  } catch (error) {
-    log.error('Failed to fetch products for homepage', {
-      error: error instanceof Error ? error.message : String(error),
-    })
-    // Return empty array to prevent build failures
-    return []
-  }
-}
-
-async function getCategories(): Promise<Category[]> {
-  try {
-    // Optimized: Direct database query eliminates HTTP overhead
-    // Using prepared statement for better performance
-    const result = await pgPool.query(
-      `
-      SELECT id, name, slug, description, image, "parentId", "createdAt", "updatedAt"
-      FROM "Category"
-      ORDER BY "createdAt" ASC
-      LIMIT 50
-      `,
-    )
-    const categories = result.rows
-    log.info(`Fetched ${categories.length} categories for homepage`)
-    return categories
-  } catch (error) {
-    log.error('Failed to fetch categories for homepage', {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-    })
-    // Return empty array to prevent build failures
-    return []
-  }
-}
+// Revalidate every 60 seconds for fresh data
+export const revalidate = 60
 
 export default async function HomePage() {
-  const products = await getProducts()
-  const categories = await getCategories()
+  // Parallel data fetching for optimal performance (<200ms target)
+  const [productsResult, categoriesResult] = await Promise.all([
+    fetchProducts({ inStock: true, limit: 6 }),
+    fetchCategories({ limit: 50 }),
+  ])
   
-  // Debug: Log categories to see what we're getting
-  if (categories.length === 0) {
-    log.warn('No categories found in database for homepage')
-  } else {
-    log.info(`Homepage rendering with ${categories.length} categories`, {
-      categoryNames: categories.map(c => c.name),
-    })
-  }
-  
+  const products = productsResult.products
+  const categories = categoriesResult.categories
   const featuredProducts = products.slice(0, 6)
   const whyChooseUs = [
     {

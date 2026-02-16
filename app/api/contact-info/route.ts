@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { pgPool } from '@/lib/pg'
+import { queryWithRetry } from '@/lib/pg'
 import { requireAdmin } from '@/lib/auth-middleware'
 import { contactInfoSchema } from '@/lib/contact-info-validation'
 import { log } from '@/lib/logger'
@@ -8,7 +8,7 @@ import { rateLimit } from '@/lib/rate-limit'
 
 async function getOrCreateContactInfo() {
   try {
-    const existing = await pgPool.query(
+    const existing = await queryWithRetry(
       `
       SELECT id, phone, email, address, city, state, country, "registeredAddress", "factoryLocation2",
              "regionalBangalore", "regionalKolkata", "regionalGurgaon",
@@ -17,13 +17,15 @@ async function getOrCreateContactInfo() {
       ORDER BY "createdAt" ASC
       LIMIT 1
       `,
+      [],
+      'getOrCreateContactInfo-select',
     )
 
     if (existing.rows[0]) {
       return existing.rows[0]
     }
 
-    const inserted = await pgPool.query(
+    const inserted = await queryWithRetry(
       `
       INSERT INTO "ContactInfo" (
         phone, email, address, city, state, country, "registeredAddress", "factoryLocation2",
@@ -35,6 +37,8 @@ async function getOrCreateContactInfo() {
                 "regionalBangalore", "regionalKolkata", "regionalGurgaon",
                 "createdAt", "updatedAt"
       `,
+      [],
+      'getOrCreateContactInfo-insert',
     )
 
     return inserted.rows[0]
@@ -111,7 +115,7 @@ export const PUT = requireAdmin(async (req: NextRequest) => {
 
     const existing = await getOrCreateContactInfo()
 
-    const updated = await pgPool.query(
+    const updated = await queryWithRetry(
       `
       UPDATE "ContactInfo"
       SET
@@ -146,6 +150,7 @@ export const PUT = requireAdmin(async (req: NextRequest) => {
         parsed.regionalContacts?.gurgaon ?? null,
         existing.id,
       ],
+      'updateContactInfo',
     )
 
     return NextResponse.json(updated.rows[0])

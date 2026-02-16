@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { log } from './logger'
+import { getRedisClient, isRedisConnected } from './redis'
 
-// In-memory rate limiter implementation
+// In-memory rate limiter implementation (fallback when Redis is unavailable)
 class InMemoryRateLimiter {
   private requests: Map<string, number[]> = new Map()
   private readonly windowMs: number
@@ -61,10 +62,85 @@ class InMemoryRateLimiter {
   }
 }
 
-// Create in-memory rate limiters for different endpoint types
-const authRateLimiter = new InMemoryRateLimiter(5, 60) // 5 requests per minute for auth endpoints
-const apiRateLimiter = new InMemoryRateLimiter(100, 60) // 100 requests per minute for general API
-const adminRateLimiter = new InMemoryRateLimiter(200, 60) // 200 requests per minute for admin endpoints
+// Redis-based rate limiter using sliding window algorithm
+class RedisRateLimiter {
+  private readonly maxRequests: number
+  private readonly windowSeconds: number
+
+  constructor(maxRequests: number, windowSeconds: number) {
+    this.maxRequests = maxRequests
+    this.windowSeconds = windowSeconds
+  }
+
+  async limit(identifier: string): Promise<{ success: boolean; limit: number; remaining: number; reset: number }> {
+    const redis = getRedisClient()
+    if (!redis || !isRedisConnected()) {
+      // Fallback to in-memory if Redis is unavailable
+      const fallback = new InMemoryRateLimiter(this.maxRequests, this.windowSeconds)
+      return fallback.limit(identifier)
+    }
+
+    const now = Date.now()
+    const key = `rate_limit:${identifier}`
+    const windowStart = now - this.windowSeconds * 1000
+
+    try {
+      // Use Redis sorted set for sliding window
+      // Score = timestamp, Member = unique request ID
+      const pipeline = redis.pipeline()
+      
+      // Remove old entries outside the window
+      pipeline.zremrangebyscore(key, 0, windowStart)
+      
+      // Count current requests in window
+      pipeline.zcard(key)
+      
+      // Add current request
+      pipeline.zadd(key, now, `${now}-${Math.random()}`)
+      
+      // Set expiration on the key
+      pipeline.expire(key, this.windowSeconds)
+      
+      const results = await pipeline.exec()
+      
+      if (!results || results.length < 2) {
+        // Fallback on error
+        const fallback = new InMemoryRateLimiter(this.maxRequests, this.windowSeconds)
+        return fallback.limit(identifier)
+      }
+
+      const currentCount = results[1][1] as number
+      const reset = Math.ceil((now + this.windowSeconds * 1000) / 1000)
+
+      if (currentCount >= this.maxRequests) {
+        return {
+          success: false,
+          limit: this.maxRequests,
+          remaining: 0,
+          reset,
+        }
+      }
+
+      return {
+        success: true,
+        limit: this.maxRequests,
+        remaining: Math.max(0, this.maxRequests - currentCount - 1),
+        reset,
+      }
+    } catch (error) {
+      log.error('Redis rate limit error', error)
+      // Fallback to in-memory on error
+      const fallback = new InMemoryRateLimiter(this.maxRequests, this.windowSeconds)
+      return fallback.limit(identifier)
+    }
+  }
+}
+
+// Create rate limiters (Redis with in-memory fallback)
+// These will automatically use Redis if available, otherwise fall back to in-memory
+const authRateLimiter = new RedisRateLimiter(5, 60) // 5 requests per minute for auth endpoints
+const apiRateLimiter = new RedisRateLimiter(100, 60) // 100 requests per minute for general API
+const adminRateLimiter = new RedisRateLimiter(200, 60) // 200 requests per minute for admin endpoints
 
 export type RateLimitConfig = {
   maxRequests?: number

@@ -23,7 +23,15 @@ const envSchema = z.object({
   
   // Email service is disabled - no email-related env vars needed
   
-  // Rate Limiting uses in-memory implementation (no external dependencies needed)
+  // Redis (optional - for caching and rate limiting)
+  REDIS_URL: z.string().url().optional(),
+  REDIS_HOST: z.string().optional(),
+  REDIS_PORT: z.string().optional(),
+  REDIS_PASSWORD: z.string().optional(),
+  
+  // Database Connection Pool (optional - defaults provided)
+  DB_POOL_MAX: z.string().optional(),
+  DB_POOL_MIN: z.string().optional(),
 })
 
 type Env = z.infer<typeof envSchema>
@@ -46,6 +54,12 @@ function validateEnv(): Env {
       LOG_LEVEL: emptyToUndefined(process.env.LOG_LEVEL),
       SENTRY_DSN: emptyToUndefined(process.env.SENTRY_DSN),
       SENTRY_ENVIRONMENT: emptyToUndefined(process.env.SENTRY_ENVIRONMENT),
+      REDIS_URL: emptyToUndefined(process.env.REDIS_URL),
+      REDIS_HOST: emptyToUndefined(process.env.REDIS_HOST),
+      REDIS_PORT: emptyToUndefined(process.env.REDIS_PORT),
+      REDIS_PASSWORD: emptyToUndefined(process.env.REDIS_PASSWORD),
+      DB_POOL_MAX: emptyToUndefined(process.env.DB_POOL_MAX),
+      DB_POOL_MIN: emptyToUndefined(process.env.DB_POOL_MIN),
     })
   } catch (error) {
     if (error instanceof z.ZodError) {

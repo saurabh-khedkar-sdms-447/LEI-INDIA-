@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  # Redis for local development
+  redis:
+    image: redis:7-alpine
+    container_name: leiindias-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - leiindias-network
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+    driver: local
+
+networks:
+  leiindias-network:
+    driver: bridge

@@ -2,8 +2,8 @@
   "family": "leiindias-task",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
-  "cpu": "512",
-  "memory": "1024",
+  "cpu": "2048",
+  "memory": "4096",
   "containerDefinitions": [
     {
       "name": "leiindias",
@@ -23,6 +23,14 @@
         {
           "name": "NEXT_PUBLIC_API_URL",
           "value": "https://www.leiindias.com"
+        },
+        {
+          "name": "DB_POOL_MAX",
+          "value": "20"
+        },
+        {
+          "name": "DB_POOL_MIN",
+          "value": "5"
         }
       ],
       "secrets": [
@@ -33,6 +41,10 @@
         {
           "name": "JWT_SECRET",
           "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:leiindias/JWT_SECRET"
+        },
+        {
+          "name": "REDIS_URL",
+          "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:leiindias/REDIS_URL"
         }
       ],
       "logConfiguration": {

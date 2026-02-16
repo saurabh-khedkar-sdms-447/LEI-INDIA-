@@ -15,14 +15,16 @@ function createPool(): Pool {
   
   const dbUrl = DATABASE_URL
   
-  // Optimized pool configuration for production-scale performance
+  // Optimized pool configuration for high-concurrency (10K+ users)
+  // Default: 20 connections (configurable via DB_POOL_MAX)
+  // Ensure PostgreSQL max_connections supports this (typically 50-100 on managed DBs)
   const poolConfig: any = {
-    max: parseInt(process.env.DB_POOL_MAX || '20', 10), // Max connections per instance
-    min: parseInt(process.env.DB_POOL_MIN || '5', 10), // Min idle connections
-    idleTimeoutMillis: 30000, // Close idle clients after 30s
-    connectionTimeoutMillis: 10000, // Return error after 10s if connection cannot be established
-    statement_timeout: 30000, // Query timeout (30s)
-    query_timeout: 30000,
+    max: parseInt(process.env.DB_POOL_MAX || '20', 10), // Default: 20 connections (was 3)
+    min: parseInt(process.env.DB_POOL_MIN || '5', 10), // Keep 5 warm connections for faster response
+    idleTimeoutMillis: 30000, // Close idle clients after 30s (was 10s - less aggressive)
+    connectionTimeoutMillis: 5000, // Return error after 5s (was 3s - more tolerant)
+    statement_timeout: 15000, // Query timeout 15s (prevent long-running queries)
+    query_timeout: 15000,
     // Enable prepared statements for better performance
     allowExitOnIdle: false,
   }

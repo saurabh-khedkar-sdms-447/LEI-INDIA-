@@ -18,21 +18,11 @@ interface ProductPageProps {
   params: { id: string }
 }
 
+import { fetchProductById } from '@/lib/data-fetching'
+
 async function getProduct(id: string): Promise<Product | null> {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
-  const url = new URL(`/api/products/${id}`, baseUrl)
-  const response = await fetch(url.toString(), {
-    cache: 'no-store', // Always fetch fresh data
-  })
-  if (!response.ok) {
-    if (response.status === 404) {
-      return null
-    }
-    // Let Next.js error boundary handle non-404 errors
-    throw new Error('Failed to fetch product')
-  }
-  return await response.json()
+  // Direct DB query eliminates HTTP overhead
+  return await fetchProductById(id)
 }
 
 async function getTechnicalDetails(productId: string) {

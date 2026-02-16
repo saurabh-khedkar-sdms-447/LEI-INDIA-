@@ -24,8 +24,11 @@ export async function queryWithRetry<T extends Record<string, any> = Record<stri
       lastError = error
       // Check if it's a connection pool exhaustion error (code 53300)
       if (error?.code === '53300' && attempt < maxRetries - 1) {
-        // Exponential backoff: wait 100ms, 200ms, 400ms
-        const delay = Math.min(100 * Math.pow(2, attempt), 1000)
+        // Exponential backoff: wait longer for connection exhaustion
+        // 200ms, 500ms, 1000ms to give database time to free connections
+        const delay = Math.min(200 * Math.pow(2.5, attempt), 2000)
+        console.warn(`[DB Pool] Connection exhausted for ${operationName}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`)
+        console.warn(`[DB Pool] Stats: Total: ${pool.totalCount}, Idle: ${pool.idleCount}, Waiting: ${pool.waitingCount}`)
         await new Promise(resolve => setTimeout(resolve, delay))
         continue
       }
@@ -55,15 +58,29 @@ export async function queryWithRetry<T extends Record<string, any> = Record<stri
  */
 export async function getClientWithRetry(
   operationName: string = 'get client',
+  maxRetries: number = 3,
 ) {
-  try {
-    return await pool.connect()
-  } catch (error: any) {
-    // If connection pool is exhausted, log detailed info
-    if (error?.code === '53300') {
-      console.error(`[DB Pool] Connection exhausted for ${operationName}`)
-      console.error(`[DB Pool] Total: ${pool.totalCount}, Idle: ${pool.idleCount}, Waiting: ${pool.waitingCount}`)
+  let lastError: any
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await pool.connect()
+    } catch (error: any) {
+      lastError = error
+      // If connection pool is exhausted, retry with backoff
+      if (error?.code === '53300' && attempt < maxRetries - 1) {
+        const delay = Math.min(200 * Math.pow(2.5, attempt), 2000)
+        console.warn(`[DB Pool] Connection exhausted for ${operationName}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`)
+        console.warn(`[DB Pool] Stats: Total: ${pool.totalCount}, Idle: ${pool.idleCount}, Waiting: ${pool.waitingCount}`)
+        await new Promise(resolve => setTimeout(resolve, delay))
+        continue
+      }
+      // For other errors or final attempt, throw immediately
+      if (error?.code === '53300') {
+        console.error(`[DB Pool] Connection exhausted for ${operationName} after ${maxRetries} attempts`)
+        console.error(`[DB Pool] Final Stats: Total: ${pool.totalCount}, Idle: ${pool.idleCount}, Waiting: ${pool.waitingCount}`)
+      }
+      throw error
     }
-    throw error
   }
+  throw lastError
 }

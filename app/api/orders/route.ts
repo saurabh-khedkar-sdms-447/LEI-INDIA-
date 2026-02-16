@@ -52,8 +52,9 @@ export const POST = requireCustomer(async (req: NextRequest) => {
     const json = await req.json()
     const data = orderSchema.parse(json)
 
-    // Start a transaction
-    const client = await pgPool.connect()
+    // Start a transaction - use getClientWithRetry for better connection management
+    const { getClientWithRetry } = await import('@/lib/pg')
+    const client = await getClientWithRetry('createOrder')
     try {
       await client.query('BEGIN')
 

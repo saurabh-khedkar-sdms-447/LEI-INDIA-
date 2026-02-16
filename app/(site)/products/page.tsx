@@ -3,36 +3,9 @@ import { Header } from "@/components/shared/Header"
 import { Footer } from "@/components/shared/Footer"
 import { FilterSidebar } from "@/components/features/FilterSidebar"
 import { ComparisonDrawer } from "@/components/features/ComparisonDrawer"
-import { ProductList } from "@/components/features/ProductList"
-import { Category } from "@/types"
-import { log } from "@/lib/logger"
+import { ProductListServer } from "@/components/features/ProductListServer"
+import { fetchCategoryBySlug, fetchCategoryById } from "@/lib/data-fetching"
 import { Suspense } from "react"
-
-// Helper function to fetch categoryId from category slug
-async function getCategoryIdFromSlug(slug: string | undefined): Promise<string | undefined> {
-  if (!slug) return undefined
-  
-  try {
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
-    const response = await fetch(`${baseUrl}/api/categories?limit=1000`, {
-      cache: 'no-store',
-    })
-    
-    if (!response.ok) {
-      log.error('Failed to fetch categories for slug lookup')
-      return undefined
-    }
-    
-    const data = await response.json()
-    const categories: Category[] = Array.isArray(data) ? data : (data.categories || [])
-    const category = categories.find(c => c.slug === slug)
-    return category?.id
-  } catch (error) {
-    log.error('Error fetching category by slug', error)
-    return undefined
-  }
-}
 
 export const metadata: Metadata = {
   title: "Products",
@@ -43,53 +16,34 @@ interface ProductsPageProps {
   searchParams: { [key: string]: string | string[] | undefined }
 }
 
-async function getCategoryInfo(searchParams: ProductsPageProps['searchParams']): Promise<Category | null> {
+export default async function ProductsPage({ searchParams }: ProductsPageProps) {
+  // Get active category name if category filter is applied - using direct DB query
   const categorySlug = searchParams.category as string | undefined
   const categoryId = searchParams.categoryId as string | undefined
   
-  if (!categorySlug && !categoryId) return null
-  
-  try {
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
-    
-    let category: Category | null = null
-    
-    if (categoryId) {
-      const response = await fetch(`${baseUrl}/api/categories?limit=1000`, {
-        cache: 'no-store',
-      })
-      if (response.ok) {
-        const data = await response.json()
-        const categories: Category[] = Array.isArray(data) ? data : (data.categories || [])
-        category = categories.find(c => c.id === categoryId) || null
-      }
-    } else if (categorySlug) {
-      const response = await fetch(`${baseUrl}/api/categories?limit=1000`, {
-        cache: 'no-store',
-      })
-      if (response.ok) {
-        const data = await response.json()
-        const categories: Category[] = Array.isArray(data) ? data : (data.categories || [])
-        category = categories.find(c => c.slug === categorySlug) || null
-      }
-    }
-    
-    return category
-  } catch (error) {
-    log.error('Error fetching category for display', error)
-    return null
+  let activeCategory = null
+  if (categoryId) {
+    activeCategory = await fetchCategoryById(categoryId)
+  } else if (categorySlug) {
+    activeCategory = await fetchCategoryBySlug(categorySlug)
   }
-}
-
-export default async function ProductsPage({ searchParams }: ProductsPageProps) {
-  // Get active category name if category filter is applied
-  const activeCategory = await getCategoryInfo(searchParams)
+  
   const pageTitle = activeCategory ? activeCategory.name : 'Industrial Connectors & Cables'
 
-  // Convert category slug to categoryId if needed
-  const categorySlug = searchParams.category as string | undefined
-  const categoryId = searchParams.categoryId as string | undefined || await getCategoryIdFromSlug(categorySlug)
+  // Normalize searchParams for ProductListServer
+  const normalizedSearchParams = {
+    categoryId: typeof searchParams.categoryId === 'string' ? searchParams.categoryId : undefined,
+    category: typeof searchParams.category === 'string' ? searchParams.category : undefined,
+    connectorType: typeof searchParams.connectorType === 'string' ? searchParams.connectorType : undefined,
+    code: typeof searchParams.code === 'string' ? searchParams.code : undefined,
+    degreeOfProtection: typeof searchParams.degreeOfProtection === 'string' ? searchParams.degreeOfProtection : undefined,
+    pins: typeof searchParams.pins === 'string' ? searchParams.pins : undefined,
+    gender: typeof searchParams.gender === 'string' ? searchParams.gender : undefined,
+    inStock: typeof searchParams.inStock === 'string' ? searchParams.inStock : undefined,
+    search: typeof searchParams.search === 'string' ? searchParams.search : undefined,
+    cursor: typeof searchParams.cursor === 'string' ? searchParams.cursor : undefined,
+    limit: typeof searchParams.limit === 'string' ? searchParams.limit : undefined,
+  }
 
   return (
     <>
@@ -115,7 +69,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                   <p className="text-lg text-gray-600">Loading products...</p>
                 </div>
               }>
-                <ProductList />
+                <ProductListServer searchParams={normalizedSearchParams} />
               </Suspense>
             </div>
           </div>

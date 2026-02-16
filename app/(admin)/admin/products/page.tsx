@@ -653,11 +653,12 @@ export default function AdminProductsPage() {
           // Handle comma-separated string from database
           if (typeof ipRating === 'string') {
             const ratings = ipRating.split(',').map(v => v.trim()).filter(Boolean)
-            return ratings.filter(r => ['IP67', 'IP68', 'IP20'].includes(r))
+            const validRatings = ratings.filter(r => ['IP67', 'IP68', 'IP20'].includes(r))
+            return validRatings.length > 0 ? validRatings.join(',') : undefined
           }
           // Handle single value
           if (['IP67', 'IP68', 'IP20'].includes(ipRating)) {
-            return [ipRating]
+            return ipRating
           }
           return undefined
         })(),
@@ -1144,7 +1145,9 @@ export default function AdminProductsPage() {
                               newArray = currentArray.filter((v) => v !== rating)
                             }
                             
-                            setValue('degreeOfProtection', newArray.length > 0 ? newArray : undefined, { shouldValidate: true })
+                            // Convert array to comma-separated string to match schema transform
+                            const newValue = newArray.length > 0 ? newArray.join(',') : undefined
+                            setValue('degreeOfProtection', newValue, { shouldValidate: true })
                           }}
                         />
                         <Label
